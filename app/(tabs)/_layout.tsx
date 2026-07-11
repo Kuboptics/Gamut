@@ -3,7 +3,9 @@ import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { motionDuration } from '../../constants/motion';
 import { colors } from '../../constants/theme';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 // Gives every tab item the same press feedback as the rest of the app,
 // instead of the tab bar's own default (unanimated) touchable.
@@ -29,11 +31,21 @@ function TabBarButton({
 }
 
 export default function TabsLayout() {
+  const reducedMotion = useReducedMotion();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarButton: TabBarButton,
+        // Same fade + duration as the root Stack (constants/motion.ts),
+        // so switching tabs feels like the same transition as every
+        // other screen change in the app, instead of a hard cut.
+        animation: reducedMotion ? 'none' : 'fade',
+        transitionSpec: {
+          animation: 'timing',
+          config: { duration: motionDuration.base },
+        },
         tabBarStyle: {
           backgroundColor: colors.background,
           borderTopWidth: 1,

@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { motionDuration } from '../constants/motion';
 import { colors } from '../constants/theme';
 import { RoundProvider } from '../context/RoundContext';
 import { StreakProvider } from '../context/StreakContext';
@@ -12,10 +13,6 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 // Keep the splash screen up until the dot-matrix font has loaded, so we
 // never flash default system text before switching to the real font.
 SplashScreen.preventAutoHideAsync();
-
-// Screen-to-screen transition timing — short and quiet, per CLAUDE.md's
-// "motion is minimal and purposeful."
-const SCREEN_TRANSITION_DURATION_MS = 220;
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ DotGothic16_400Regular });
@@ -40,7 +37,7 @@ export default function RootLayout() {
             headerShown: false,
             contentStyle: { backgroundColor: colors.background },
             animation: reducedMotion ? 'none' : 'fade',
-            animationDuration: SCREEN_TRANSITION_DURATION_MS,
+            animationDuration: motionDuration.base,
           }}
         />
       </StreakProvider>

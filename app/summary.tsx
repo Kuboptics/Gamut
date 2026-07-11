@@ -8,6 +8,7 @@ import { Divider } from '../components/Divider';
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
+import { motionDuration, motionEasing, REVEAL_STAGGER_MS } from '../constants/motion';
 import { colors, spacing, typeScale } from '../constants/theme';
 import { PASS_THRESHOLD, useRound } from '../context/RoundContext';
 import { useStreak } from '../context/StreakContext';
@@ -15,12 +16,10 @@ import { useStreak } from '../context/StreakContext';
 // The reveal fades in one beat at a time — verdict, then average, then
 // the caption, then the individual shots — rather than appearing all at
 // once. Reanimated's FadeIn already respects the OS "Reduce Motion"
-// setting by default, so no extra handling is needed here.
-const REVEAL_STAGGER_MS = 140;
-const REVEAL_DURATION_MS = 180;
-
+// setting by default, so no extra handling is needed here. Duration and
+// easing come from the app's one shared set of motion values.
 function revealStep(step: number) {
-  return FadeIn.delay(step * REVEAL_STAGGER_MS).duration(REVEAL_DURATION_MS);
+  return FadeIn.delay(step * REVEAL_STAGGER_MS).duration(motionDuration.base).easing(motionEasing);
 }
 
 // The final screen after a 3-photo round: every shot's score, the

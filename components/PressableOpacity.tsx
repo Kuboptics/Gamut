@@ -1,28 +1,26 @@
 import { useCallback } from 'react';
 import { Pressable, type GestureResponderEvent, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+
+import { motionDuration, motionEasing, motionReduceMotion, releaseSpringConfig } from '../constants/motion';
 
 // Tune the press feedback here.
 const PRESS_SCALE = 0.97;
 const PRESS_OPACITY = 0.7;
-const PRESS_IN_DURATION_MS = 80;
 
-// Shared by both the scale and opacity press-in animations. Explicitly
-// named `reduceMotion` so it's clear in the code that this respects the
-// OS "Reduce Motion" setting (ReduceMotion.System is Reanimated's
-// default anyway, but spelling it out here documents the intent).
-const PRESS_IN_CONFIG = { duration: PRESS_IN_DURATION_MS, reduceMotion: ReduceMotion.System } as const;
+// Shared by both the scale and opacity press-in animations. Draws from
+// the app's one shared set of motion values (constants/motion.ts)
+// rather than defining its own duration/easing/reduceMotion.
+const PRESS_IN_CONFIG = {
+  duration: motionDuration.press,
+  easing: motionEasing,
+  reduceMotion: motionReduceMotion,
+} as const;
 
-// The release "spring back". dampingRatio: 1 is critically damped — the
-// fastest a spring can return to rest without overshooting past it — and
-// overshootClamping is added as a second guarantee against any bounce.
-// duration here is the spring's *perceptual* duration in ms, not a hard
-// cutoff (Reanimated docs: actual settle time runs a bit longer).
-const RELEASE_SPRING = {
-  duration: 180,
-  dampingRatio: 1,
-  overshootClamping: true,
-  reduceMotion: ReduceMotion.System,
+const PRESS_OUT_OPACITY_CONFIG = {
+  duration: motionDuration.base,
+  easing: motionEasing,
+  reduceMotion: motionReduceMotion,
 } as const;
 
 type PressableOpacityProps = Omit<PressableProps, 'style'> & {
@@ -33,9 +31,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // A Pressable that scales down and dims slightly on touch, springing
 // back (fast, no overshoot) on release. This is the one place every
-// button/toggle/camera control in the app gets its pressed feedback
-// from, so it's consistent everywhere instead of reimplemented per
-// screen.
+// button/toggle/control in the app gets its pressed feedback from, so
+// it's consistent everywhere instead of reimplemented per screen.
 export function PressableOpacity({ style, onPressIn, onPressOut, ...props }: PressableOpacityProps) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
@@ -56,8 +53,8 @@ export function PressableOpacity({ style, onPressIn, onPressOut, ...props }: Pre
 
   const handlePressOut = useCallback(
     (event: GestureResponderEvent) => {
-      scale.value = withSpring(1, RELEASE_SPRING);
-      opacity.value = withTiming(1, PRESS_IN_CONFIG);
+      scale.value = withSpring(1, releaseSpringConfig);
+      opacity.value = withTiming(1, PRESS_OUT_OPACITY_CONFIG);
       onPressOut?.(event);
     },
     [onPressOut, opacity, scale]

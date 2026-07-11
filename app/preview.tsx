@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackButton } from '../components/BackButton';
 import { Divider } from '../components/Divider';
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
@@ -83,6 +84,7 @@ export default function PreviewScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <BackButton />
         <Label>
           Photo {scores.length + 1} of {PHOTOS_PER_ROUND}
         </Label>
@@ -124,6 +126,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
   },

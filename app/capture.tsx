@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackButton } from '../components/BackButton';
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
@@ -61,6 +62,7 @@ export default function CaptureScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <BackButton />
         <Label>Add Photo</Label>
       </View>
 
@@ -78,6 +80,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
   },
