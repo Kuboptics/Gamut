@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -37,10 +38,10 @@ export default function CaptureScreen() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [zoomIndex, setZoomIndex] = useState(0);
 
-  function goToResult(photoUri: string) {
-    // Replace (not push) so the round's Capture <-> Result screens never
-    // pile up in the navigation stack — back always leads to Today.
-    router.replace({ pathname: '/result', params: { photoUri } });
+  function goToPreview(photoUri: string) {
+    // Replace (not push) so the round's Capture <-> Preview screens
+    // never pile up in the navigation stack — back always leads to Today.
+    router.replace({ pathname: '/preview', params: { photoUri } });
   }
 
   async function handleCapture() {
@@ -48,7 +49,7 @@ export default function CaptureScreen() {
     setIsTakingPhoto(true);
     try {
       const photo = await cameraRef.current.takePictureAsync();
-      goToResult(photo.uri);
+      goToPreview(photo.uri);
     } finally {
       setIsTakingPhoto(false);
     }
@@ -61,7 +62,7 @@ export default function CaptureScreen() {
     const picked = await ImagePicker.launchImageLibraryAsync({ quality: 1 });
     if (picked.canceled) return;
 
-    goToResult(picked.assets[0].uri);
+    goToPreview(picked.assets[0].uri);
   }
 
   function handleFlipCamera() {
@@ -121,7 +122,7 @@ export default function CaptureScreen() {
           disabled={!isCameraReady || isTakingPhoto}
         />
         <PressableOpacity style={[styles.sideButton, styles.sideButtonRight]} onPress={handleFlipCamera}>
-          <Label>Flip</Label>
+          <Ionicons name="camera-reverse-outline" size={28} color={colors.textPrimary} />
         </PressableOpacity>
       </View>
     </View>

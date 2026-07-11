@@ -45,11 +45,26 @@ function SpecimenFrame({ children }: { children: ReactNode }) {
   );
 }
 
+// A row of small squares showing how many of the 3 photos are banked —
+// a quick "instrument readout" version of the progress text.
+function RoundProgress({ bankedCount }: { bankedCount: number }) {
+  return (
+    <View style={styles.progressRow}>
+      {Array.from({ length: PHOTOS_PER_ROUND }).map((_, index) => (
+        <View
+          key={index}
+          style={[styles.progressTick, index < bankedCount && styles.progressTickFilled]}
+        />
+      ))}
+    </View>
+  );
+}
+
 // The "Today" screen: the specimen slide showing today's target color,
-// and the button that starts a 3-photo round.
+// and the button that continues the in-progress 3-photo round.
 export default function TodayScreen() {
   const router = useRouter();
-  const { resetRound } = useRound();
+  const { scores, isLoaded } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
 
@@ -63,11 +78,12 @@ export default function TodayScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  function handleStartRound() {
-    // Clear out any previous (possibly abandoned) round before starting
-    // a fresh one, so shot counting always begins at zero.
-    resetRound();
-    router.push('/capture');
+  const bankedCount = scores.length;
+  const isRoundComplete = bankedCount >= PHOTOS_PER_ROUND;
+  const primaryLabel = isRoundComplete ? 'See Results' : bankedCount === 0 ? 'Start Round' : 'Add Photo';
+
+  function handlePrimaryAction() {
+    router.push(isRoundComplete ? '/summary' : '/capture');
   }
 
   return (
@@ -96,11 +112,20 @@ export default function TodayScreen() {
       <Divider />
 
       <View style={styles.controls}>
-        <Label style={styles.roundInfo}>Round · {PHOTOS_PER_ROUND} photos</Label>
+        {!isLoaded && <Label style={styles.roundInfo}>Loading…</Label>}
 
-        <PressableOpacity style={styles.captureButton} onPress={handleStartRound}>
-          <DotText style={styles.captureButtonText}>Start Round</DotText>
-        </PressableOpacity>
+        {isLoaded && (
+          <>
+            <RoundProgress bankedCount={bankedCount} />
+            <Label style={styles.roundInfo}>
+              {bankedCount} of {PHOTOS_PER_ROUND} submitted
+            </Label>
+
+            <PressableOpacity style={styles.captureButton} onPress={handlePrimaryAction}>
+              <DotText style={styles.captureButtonText}>{primaryLabel}</DotText>
+            </PressableOpacity>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -163,6 +188,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xl,
     gap: spacing.lg,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  progressTick: {
+    width: 10,
+    height: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  progressTickFilled: {
+    backgroundColor: colors.textPrimary,
+    borderColor: colors.textPrimary,
   },
   roundInfo: {
     textAlign: 'center',
