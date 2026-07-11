@@ -9,8 +9,9 @@ import { Label } from '../components/Label';
 import { PixelSampler } from '../components/PixelSampler';
 import { colors, spacing } from '../constants/theme';
 import { rgbToHex, type RGB } from '../lib/color';
+import { findBestPatch, type BestPatch } from '../lib/bestPatch';
 import { getDailyTarget } from '../lib/dailyColor';
-import { scoreMatch, verdictForScore, type Difficulty } from '../lib/scoring';
+import { scoreFromDistance, verdictForScore, type Difficulty } from '../lib/scoring';
 
 export default function ResultScreen() {
   const params = useLocalSearchParams<{ photoUri: string; difficulty?: string }>();
@@ -22,8 +23,12 @@ export default function ResultScreen() {
   const target = getDailyTarget();
 
   const [sampleImageUri, setSampleImageUri] = useState<string | null>(null);
-  const [shotColor, setShotColor] = useState<RGB | null>(null);
+  const [bestPatch, setBestPatch] = useState<BestPatch | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  function handleSample(tileColors: RGB[]) {
+    setBestPatch(findBestPatch(tileColors, target.rgb));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -51,12 +56,12 @@ export default function ResultScreen() {
     };
   }, [params.photoUri]);
 
-  const score = shotColor ? scoreMatch(target.rgb, shotColor, difficulty) : null;
+  const score = bestPatch ? scoreFromDistance(bestPatch.distance, difficulty) : null;
   const verdict = score !== null ? verdictForScore(score) : null;
 
   return (
     <View style={styles.container}>
-      {!shotColor && !error && <Label>Measuring…</Label>}
+      {!bestPatch && !error && <Label>Measuring…</Label>}
       {error && (
         <>
           <Label>{error}</Label>
@@ -66,7 +71,7 @@ export default function ResultScreen() {
         </>
       )}
 
-      {shotColor && score !== null && (
+      {bestPatch && score !== null && (
         <>
           <DotText style={styles.score}>{score}</DotText>
           <Label>{verdict}</Label>
@@ -78,9 +83,9 @@ export default function ResultScreen() {
               <DotText style={styles.hex}>{target.hex}</DotText>
             </View>
             <View style={styles.swatchColumn}>
-              <ColorSwatch hex={rgbToHex(shotColor)} size="small" />
+              <ColorSwatch hex={rgbToHex(bestPatch.color)} size="small" />
               <Label>Your shot</Label>
-              <DotText style={styles.hex}>{rgbToHex(shotColor)}</DotText>
+              <DotText style={styles.hex}>{rgbToHex(bestPatch.color)}</DotText>
             </View>
           </View>
 
@@ -90,7 +95,7 @@ export default function ResultScreen() {
         </>
       )}
 
-      <PixelSampler imageUri={sampleImageUri} onSample={setShotColor} onError={setError} />
+      <PixelSampler imageUri={sampleImageUri} onSample={handleSample} onError={setError} />
     </View>
   );
 }

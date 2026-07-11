@@ -8,18 +8,23 @@ type PixelSamplerProps = {
   // A data URI like "data:image/jpeg;base64,...". Pass null when there's
   // nothing to sample yet.
   imageUri: string | null;
-  onSample: (color: RGB) => void;
+  onSample: (tileColors: RGB[]) => void;
   onError: (message: string) => void;
 };
 
-// How much of the image (by width/height) counts as the "center" region
-// we average — 0.6 means the middle 60%, per CLAUDE.md's spec.
-const CENTER_FRACTION = 0.6;
+// The whole image is divided into a GRID_SIZE x GRID_SIZE grid of tiles.
+// Each tile's average color becomes one candidate patch that
+// lib/bestPatch.ts ranks against the target color. We scan the full
+// image (not just the center) because the target-colored object could
+// be anywhere in frame.
+const GRID_SIZE = 32;
 
 // This HTML runs inside the hidden WebView, not in React Native. It draws
-// the photo onto a <canvas> and reads back the average color of the
-// center rectangle — a real browser engine can do this; React Native
-// can't, which is the whole reason this component exists.
+// the photo onto a <canvas> and reads back per-tile average colors using
+// getImageData — a real browser engine can do this; React Native can't,
+// which is the whole reason this component exists. The Lab/deltaE math
+// that ranks these tiles lives in lib/color.ts and lib/bestPatch.ts, not
+// here, so it isn't duplicated in two languages.
 function buildSamplerHtml(imageUri: string): string {
   return `
     <!DOCTYPE html>
@@ -27,7 +32,7 @@ function buildSamplerHtml(imageUri: string): string {
       <body style="margin:0">
         <canvas id="canvas"></canvas>
         <script>
-          const centerFraction = ${CENTER_FRACTION};
+          const gridSize = ${GRID_SIZE};
           const image = new Image();
 
           image.onload = function () {
@@ -37,27 +42,42 @@ function buildSamplerHtml(imageUri: string): string {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(image, 0, 0);
 
-            const cropWidth = Math.round(image.width * centerFraction);
-            const cropHeight = Math.round(image.height * centerFraction);
-            const cropX = Math.round((image.width - cropWidth) / 2);
-            const cropY = Math.round((image.height - cropHeight) / 2);
+            const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const tileWidth = canvas.width / gridSize;
+            const tileHeight = canvas.height / gridSize;
 
-            const pixels = ctx.getImageData(cropX, cropY, cropWidth, cropHeight).data;
-
-            let rSum = 0, gSum = 0, bSum = 0;
-            const pixelCount = pixels.length / 4;
-            for (let i = 0; i < pixels.length; i += 4) {
-              rSum += pixels[i];
-              gSum += pixels[i + 1];
-              bSum += pixels[i + 2];
+            const sums = [];
+            for (let i = 0; i < gridSize * gridSize; i++) {
+              sums.push({ r: 0, g: 0, b: 0, count: 0 });
             }
 
-            const result = {
-              r: Math.round(rSum / pixelCount),
-              g: Math.round(gSum / pixelCount),
-              b: Math.round(bSum / pixelCount),
-            };
-            window.ReactNativeWebView.postMessage(JSON.stringify(result));
+            // One pass over every pixel, adding it into whichever tile
+            // bucket it falls in — much faster than calling
+            // getImageData separately for each of the 1024 tiles.
+            for (let y = 0; y < canvas.height; y++) {
+              const tileRow = Math.min(gridSize - 1, Math.floor(y / tileHeight));
+              for (let x = 0; x < canvas.width; x++) {
+                const tileCol = Math.min(gridSize - 1, Math.floor(x / tileWidth));
+                const pixelIndex = (y * canvas.width + x) * 4;
+                const tile = sums[tileRow * gridSize + tileCol];
+                tile.r += pixels[pixelIndex];
+                tile.g += pixels[pixelIndex + 1];
+                tile.b += pixels[pixelIndex + 2];
+                tile.count += 1;
+              }
+            }
+
+            const tiles = sums
+              .filter(function (tile) { return tile.count > 0; })
+              .map(function (tile) {
+                return {
+                  r: Math.round(tile.r / tile.count),
+                  g: Math.round(tile.g / tile.count),
+                  b: Math.round(tile.b / tile.count),
+                };
+              });
+
+            window.ReactNativeWebView.postMessage(JSON.stringify({ tiles: tiles }));
           };
 
           image.onerror = function () {
@@ -71,9 +91,10 @@ function buildSamplerHtml(imageUri: string): string {
   `;
 }
 
-// Renders an invisible WebView that samples the average color of the
-// center of a photo. Give it an imageUri and it calls onSample (or
-// onError) once that image has been processed.
+// Renders an invisible WebView that scans a photo and returns one
+// average color per grid tile, covering the whole image. Give it an
+// imageUri and it calls onSample (or onError) once that image has been
+// processed.
 export function PixelSampler({ imageUri, onSample, onError }: PixelSamplerProps) {
   const handledRef = useRef(false);
 
@@ -92,7 +113,7 @@ export function PixelSampler({ imageUri, onSample, onError }: PixelSamplerProps)
     if ('error' in data) {
       onError(data.error);
     } else {
-      onSample(data);
+      onSample(data.tiles);
     }
   }
 

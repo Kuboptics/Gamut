@@ -12,11 +12,18 @@ const SCALE_BY_DIFFICULTY: Record<Difficulty, number> = {
   hard: 40,
 };
 
-export function scoreMatch(target: RGB, shot: RGB, difficulty: Difficulty): number {
-  const distance = deltaE76(rgbToLab(target), rgbToLab(shot));
+// Turns a Lab deltaE distance directly into a 0-100 score. Exposed on
+// its own so callers that already have a distance (like the best-patch
+// scan in lib/bestPatch.ts) don't need a target/shot RGB pair.
+export function scoreFromDistance(distance: number, difficulty: Difficulty): number {
   const scale = SCALE_BY_DIFFICULTY[difficulty];
   const rawScore = Math.round(100 * (1 - distance / scale));
   return Math.max(0, rawScore);
+}
+
+export function scoreMatch(target: RGB, shot: RGB, difficulty: Difficulty): number {
+  const distance = deltaE76(rgbToLab(target), rgbToLab(shot));
+  return scoreFromDistance(distance, difficulty);
 }
 
 export function verdictForScore(score: number): string {
