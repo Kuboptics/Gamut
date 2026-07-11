@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Directory, File, Paths } from 'expo-file-system';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 // A round is 3 photos against today's color; the round passes if the
@@ -10,6 +11,11 @@ export const PASS_THRESHOLD = 60;
 // app being fully closed (not just backgrounded).
 const STORAGE_KEY = 'colorhunt.round';
 
+// Camera/library photo URIs are temporary — banked photos get copied
+// here (the permanent document directory, not the cache) so thumbnails
+// still work after the app is fully closed and reopened.
+const PHOTOS_DIRECTORY_NAME = 'round-photos';
+
 // How often to check whether the calendar day has rolled over while the
 // app stays open (so a round doesn't linger into a new day's color).
 const DAY_CHECK_INTERVAL_MS = 30000;
@@ -17,15 +23,20 @@ const DAY_CHECK_INTERVAL_MS = 30000;
 type StoredRound = {
   dateKey: string;
   scores: number[];
+  // Parallel to `scores` — same length, same index order.
+  photoUris: string[];
 };
 
 type RoundContextValue = {
   scores: number[];
+  // Parallel to `scores` — photoUris[i] is the photo that earned scores[i].
+  photoUris: string[];
   // False until the persisted round has been read from storage, so
   // screens can avoid flashing "0 of 3" before a saved round loads.
   isLoaded: boolean;
-  // Records a photo's score and returns the new banked count.
-  bankPhoto: (score: number) => number;
+  // Copies temporaryPhotoUri into permanent storage, records its score,
+  // and returns the new banked count.
+  bankPhoto: (score: number, temporaryPhotoUri: string) => number;
   resetRound: () => void;
 };
 
@@ -41,13 +52,44 @@ function todayKey(): string {
   return `${year}-${month}-${day}`;
 }
 
-// Holds the running list of per-photo scores for the current round, and
-// persists them to AsyncStorage so a round can be spread across a whole
-// day, closing and reopening the app between shots. Lives above the
-// navigation stack (see app/_layout.tsx) so it also survives moving
-// between the Capture and Preview screens.
+function getPhotosDirectory(): Directory {
+  const directory = new Directory(Paths.document, PHOTOS_DIRECTORY_NAME);
+  if (!directory.exists) {
+    directory.create();
+  }
+  return directory;
+}
+
+// Copies a photo out of its temporary camera/library location into
+// permanent app storage, returning the new permanent uri.
+function copyToPermanentStorage(temporaryUri: string): string {
+  const source = new File(temporaryUri);
+  const destination = new File(getPhotosDirectory(), `${Date.now()}-${Math.round(Math.random() * 1e6)}.jpg`);
+  source.copy(destination);
+  return destination.uri;
+}
+
+// Deletes banked photo files from permanent storage — called when a
+// round resets, so old rounds' photos don't pile up on disk forever.
+function deletePhotoFiles(uris: string[]): void {
+  for (const uri of uris) {
+    try {
+      new File(uri).delete();
+    } catch {
+      // Already gone or inaccessible; nothing to clean up.
+    }
+  }
+}
+
+// Holds the running list of per-photo scores (and the photos
+// themselves) for the current round, and persists them to AsyncStorage
+// so a round can be spread across a whole day, closing and reopening
+// the app between shots. Lives above the navigation stack (see
+// app/_layout.tsx) so it also survives moving between the Capture and
+// Preview screens.
 export function RoundProvider({ children }: { children: ReactNode }) {
   const [scores, setScores] = useState<number[]>([]);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [dateKey, setDateKey] = useState(todayKey);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -64,6 +106,7 @@ export function RoundProvider({ children }: { children: ReactNode }) {
           // round saved on a previous day starts fresh instead.
           if (stored.dateKey === todayKey()) {
             setScores(stored.scores);
+            setPhotoUris(stored.photoUris ?? []);
           }
         }
       } catch {
@@ -79,16 +122,22 @@ export function RoundProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Persist whenever scores change, but only after the initial load has
-  // happened — otherwise we'd briefly overwrite real saved progress
-  // with an empty round before it's had a chance to load.
+  // Persist whenever scores/photos change, but only after the initial
+  // load has happened — otherwise we'd briefly overwrite real saved
+  // progress with an empty round before it's had a chance to load.
   useEffect(() => {
     if (!isLoaded) return;
-    const stored: StoredRound = { dateKey, scores };
+    const stored: StoredRound = { dateKey, scores, photoUris };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored)).catch(() => {
       // Non-fatal: progress just won't survive an app restart this time.
     });
-  }, [scores, dateKey, isLoaded]);
+  }, [scores, photoUris, dateKey, isLoaded]);
+
+  function resetRound() {
+    deletePhotoFiles(photoUris);
+    setScores([]);
+    setPhotoUris([]);
+  }
 
   // If the app is left open across local midnight, today's target color
   // changes underneath the round — check periodically and reset if so.
@@ -97,24 +146,28 @@ export function RoundProvider({ children }: { children: ReactNode }) {
       const key = todayKey();
       if (key !== dateKey) {
         setDateKey(key);
-        setScores([]);
+        resetRound();
       }
     }, DAY_CHECK_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [dateKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateKey, photoUris]);
 
   const value = useMemo<RoundContextValue>(
     () => ({
       scores,
+      photoUris,
       isLoaded,
-      bankPhoto: (score: number) => {
-        const next = [...scores, score];
-        setScores(next);
-        return next.length;
+      bankPhoto: (score: number, temporaryPhotoUri: string) => {
+        const permanentUri = copyToPermanentStorage(temporaryPhotoUri);
+        const nextScores = [...scores, score];
+        setScores(nextScores);
+        setPhotoUris([...photoUris, permanentUri]);
+        return nextScores.length;
       },
-      resetRound: () => setScores([]),
+      resetRound,
     }),
-    [scores, isLoaded]
+    [scores, photoUris, isLoaded]
   );
 
   return <RoundContext.Provider value={value}>{children}</RoundContext.Provider>;

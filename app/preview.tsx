@@ -9,7 +9,7 @@ import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
 import { PixelSampler } from '../components/PixelSampler';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, spacing, typeScale } from '../constants/theme';
+import { colors, spacing } from '../constants/theme';
 import { PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { findBestPatch, type BestPatch } from '../lib/bestPatch';
 import type { RGB } from '../lib/color';
@@ -64,7 +64,7 @@ export default function PreviewScreen() {
   function handleKeep() {
     if (!bestPatch) return; // scoring isn't ready yet; button is disabled until then
     const score = scoreFromDistance(bestPatch.distance);
-    const newCount = bankPhoto(score);
+    const newCount = bankPhoto(score, params.photoUri);
     // Replace (not push), matching capture.tsx, so the round's screens
     // never pile up in the navigation stack.
     router.replace(newCount >= PHOTOS_PER_ROUND ? '/summary' : '/');
@@ -84,8 +84,8 @@ export default function PreviewScreen() {
 
       <Divider />
 
-      <View style={styles.body}>
-        <Image source={{ uri: params.photoUri }} style={styles.photo} resizeMode="cover" />
+      <View style={styles.photoFrame}>
+        <Image source={{ uri: params.photoUri }} style={styles.photo} resizeMode="contain" />
       </View>
 
       <Divider />
@@ -99,7 +99,7 @@ export default function PreviewScreen() {
           onPress={handleKeep}
           disabled={!bestPatch}
         >
-          <DotText style={styles.keepButtonText}>Keep</DotText>
+          <DotText>Keep</DotText>
         </PressableOpacity>
       </View>
 
@@ -117,15 +117,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
   },
-  body: {
+  // The photo gets all the remaining space between the header and the
+  // action buttons — it fills and centers within whatever room is
+  // actually available, rather than forcing a fixed aspect ratio that
+  // could overflow on a smaller screen or a differently-shaped photo.
+  photoFrame: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   photo: {
-    width: '100%',
-    aspectRatio: 3 / 4,
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -151,8 +153,5 @@ const styles = StyleSheet.create({
   },
   keepButtonDisabled: {
     borderColor: colors.textMuted,
-  },
-  keepButtonText: {
-    fontSize: typeScale.button,
   },
 });

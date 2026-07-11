@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ColorSwatch } from '../../components/ColorSwatch';
@@ -45,15 +45,52 @@ function SpecimenFrame({ children }: { children: ReactNode }) {
   );
 }
 
-// A row of small squares showing how many of the 3 photos are banked —
-// a quick "instrument readout" version of the progress text.
-function RoundProgress({ bankedCount }: { bankedCount: number }) {
+// A row of thumbnails of the photos banked so far this round — tapping
+// one opens it larger. Empty slots (not yet submitted) are just a
+// hairline-bordered square. Never shows a score, only the photos.
+function RoundProgress({ photoUris }: { photoUris: string[] }) {
+  const router = useRouter();
+
   return (
     <View style={styles.progressRow}>
-      {Array.from({ length: PHOTOS_PER_ROUND }).map((_, index) => (
+      {Array.from({ length: PHOTOS_PER_ROUND }).map((_, index) => {
+        const photoUri = photoUris[index];
+        if (!photoUri) {
+          return <View key={index} style={styles.thumbnailEmpty} />;
+        }
+        return (
+          <PressableOpacity
+            key={index}
+            onPress={() => router.push({ pathname: '/photo-viewer', params: { photoUri } })}
+          >
+            <Image source={{ uri: photoUri }} style={styles.thumbnail} />
+          </PressableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+// A small geometric aperture/lens mark — concentric hairline rings with
+// radial tick marks, like a focus ring. A precise technical accent, not
+// an illustration, reinforcing the "instrument" feel near the capture
+// button.
+const APERTURE_SIZE = 40;
+const APERTURE_TICK_COUNT = 8;
+
+function ApertureMark() {
+  return (
+    <View style={styles.apertureWrap}>
+      <View style={styles.apertureOuterRing} />
+      <View style={styles.apertureInnerRing} />
+      <View style={styles.apertureCenterDot} />
+      {Array.from({ length: APERTURE_TICK_COUNT }).map((_, index) => (
         <View
           key={index}
-          style={[styles.progressTick, index < bankedCount && styles.progressTickFilled]}
+          style={[
+            styles.apertureTick,
+            { transform: [{ rotate: `${(360 / APERTURE_TICK_COUNT) * index}deg` }, { translateY: -APERTURE_SIZE / 2 }] },
+          ]}
         />
       ))}
     </View>
@@ -64,7 +101,7 @@ function RoundProgress({ bankedCount }: { bankedCount: number }) {
 // and the button that continues the in-progress 3-photo round.
 export default function TodayScreen() {
   const router = useRouter();
-  const { scores, isLoaded } = useRound();
+  const { scores, photoUris, isLoaded } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
 
@@ -122,10 +159,12 @@ export default function TodayScreen() {
 
         {isLoaded && (
           <>
-            <RoundProgress bankedCount={bankedCount} />
+            <RoundProgress photoUris={photoUris} />
             <Label style={styles.roundInfo}>
               {bankedCount} of {PHOTOS_PER_ROUND} submitted
             </Label>
+
+            <ApertureMark />
 
             <PressableOpacity style={styles.captureButton} onPress={handlePrimaryAction}>
               <DotText style={styles.captureButtonText}>{primaryLabel}</DotText>
@@ -138,6 +177,7 @@ export default function TodayScreen() {
 }
 
 const TICK_SIZE = 18;
+const THUMBNAIL_SIZE = 56;
 
 const styles = StyleSheet.create({
   container: {
@@ -207,18 +247,58 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  progressTick: {
-    width: 10,
-    height: 10,
+  thumbnail: {
+    width: THUMBNAIL_SIZE,
+    height: THUMBNAIL_SIZE,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  progressTickFilled: {
-    backgroundColor: colors.textPrimary,
-    borderColor: colors.textPrimary,
+  thumbnailEmpty: {
+    width: THUMBNAIL_SIZE,
+    height: THUMBNAIL_SIZE,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   roundInfo: {
     textAlign: 'center',
+  },
+  apertureWrap: {
+    alignSelf: 'center',
+    width: APERTURE_SIZE,
+    height: APERTURE_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  apertureOuterRing: {
+    position: 'absolute',
+    width: APERTURE_SIZE,
+    height: APERTURE_SIZE,
+    borderRadius: APERTURE_SIZE / 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  apertureInnerRing: {
+    position: 'absolute',
+    width: APERTURE_SIZE * 0.5,
+    height: APERTURE_SIZE * 0.5,
+    borderRadius: (APERTURE_SIZE * 0.5) / 2,
+    borderWidth: 1,
+    borderColor: colors.textMuted,
+  },
+  apertureCenterDot: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: colors.textMuted,
+  },
+  apertureTick: {
+    position: 'absolute',
+    top: APERTURE_SIZE / 2 - 2.5,
+    left: APERTURE_SIZE / 2 - 0.5,
+    width: 1,
+    height: 5,
+    backgroundColor: colors.border,
   },
   captureButton: {
     borderWidth: 1,
