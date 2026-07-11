@@ -6,13 +6,19 @@ import { useEffect } from 'react';
 
 import { colors } from '../constants/theme';
 import { RoundProvider } from '../context/RoundContext';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 // Keep the splash screen up until the dot-matrix font has loaded, so we
 // never flash default system text before switching to the real font.
 SplashScreen.preventAutoHideAsync();
 
+// Screen-to-screen transition timing — short and quiet, per CLAUDE.md's
+// "motion is minimal and purposeful."
+const SCREEN_TRANSITION_DURATION_MS = 220;
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ DotGothic16_400Regular });
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -31,6 +37,8 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },
+          animation: reducedMotion ? 'none' : 'fade',
+          animationDuration: SCREEN_TRANSITION_DURATION_MS,
         }}
       />
     </RoundProvider>

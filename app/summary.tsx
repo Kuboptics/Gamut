@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Divider } from '../components/Divider';
 import { DotText } from '../components/DotText';
@@ -8,6 +9,17 @@ import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { colors, spacing, typeScale } from '../constants/theme';
 import { PASS_THRESHOLD, useRound } from '../context/RoundContext';
+
+// The reveal fades in one beat at a time — verdict, then average, then
+// the caption, then the individual shots — rather than appearing all at
+// once. Reanimated's FadeIn already respects the OS "Reduce Motion"
+// setting by default, so no extra handling is needed here.
+const REVEAL_STAGGER_MS = 140;
+const REVEAL_DURATION_MS = 180;
+
+function revealStep(step: number) {
+  return FadeIn.delay(step * REVEAL_STAGGER_MS).duration(REVEAL_DURATION_MS);
+}
 
 // The final screen after a 3-photo round: every shot's score, the
 // average, and the PASS/FAIL verdict.
@@ -37,21 +49,28 @@ export default function SummaryScreen() {
       <Divider />
 
       <View style={styles.body}>
-        <DotText style={[styles.verdict, passed ? styles.pass : styles.fail]}>
-          {passed ? 'PASS' : 'FAIL'}
-        </DotText>
+        <Animated.View entering={revealStep(0)}>
+          <DotText style={[styles.verdict, passed ? styles.pass : styles.fail]}>
+            {passed ? 'PASS' : 'FAIL'}
+          </DotText>
+        </Animated.View>
 
-        <DotText style={styles.average}>{average}%</DotText>
-        <Label>Average of {scores.length} shots</Label>
+        <Animated.View entering={revealStep(1)}>
+          <DotText style={styles.average}>{average}%</DotText>
+        </Animated.View>
 
-        <View style={styles.scoreList}>
+        <Animated.View entering={revealStep(2)}>
+          <Label>Average of {scores.length} shots</Label>
+        </Animated.View>
+
+        <Animated.View style={styles.scoreList} entering={revealStep(3)}>
           {scores.map((score, index) => (
             <View key={index} style={styles.scoreRow}>
               <Label>Shot {index + 1}</Label>
               <DotText style={styles.scoreValue}>{score}%</DotText>
             </View>
           ))}
-        </View>
+        </Animated.View>
       </View>
 
       <Divider />
