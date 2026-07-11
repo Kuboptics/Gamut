@@ -2,14 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { colors, spacing } from '../constants/theme';
+
+// The camera view fades to black and back whenever facing/lens/zoom
+// changes, masking the native camera session's reconfiguration flicker.
+// Each half of the fade gets this many ms, so the whole thing is ~200ms.
+const CAMERA_TRANSITION_HALF_MS = 100;
 
 // The zoom presets shown as on-screen buttons. expo-camera's `zoom` prop
 // is a 0-1 fraction of "however much zoom this device supports" (not a
@@ -37,6 +43,23 @@ export default function CaptureScreen() {
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
   const [facing, setFacing] = useState<CameraType>('back');
   const [zoomIndex, setZoomIndex] = useState(0);
+
+  const cameraTransitionOpacity = useSharedValue(0);
+  const cameraTransitionStyle = useAnimatedStyle(() => ({
+    opacity: cameraTransitionOpacity.value,
+  }));
+  const isFirstRender = useRef(true);
+
+  // Fade to black and back whenever facing or zoom changes — not on the
+  // initial mount, only on subsequent changes.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const config = { duration: CAMERA_TRANSITION_HALF_MS, reduceMotion: ReduceMotion.System } as const;
+    cameraTransitionOpacity.value = withSequence(withTiming(1, config), withTiming(0, config));
+  }, [facing, zoomIndex, cameraTransitionOpacity]);
 
   function goToPreview(photoUri: string) {
     // Replace (not push) so the round's Capture <-> Preview screens
@@ -91,14 +114,17 @@ export default function CaptureScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={facing}
-        selectedLens={facing === 'back' ? WIDE_LENS : undefined}
-        zoom={ZOOM_PRESETS[zoomIndex].zoom}
-        onCameraReady={() => setIsCameraReady(true)}
-      />
+      <View style={styles.cameraWrapper}>
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing={facing}
+          selectedLens={facing === 'back' ? WIDE_LENS : undefined}
+          zoom={ZOOM_PRESETS[zoomIndex].zoom}
+          onCameraReady={() => setIsCameraReady(true)}
+        />
+        <Animated.View pointerEvents="none" style={[styles.cameraTransitionOverlay, cameraTransitionStyle]} />
+      </View>
 
       <View style={styles.zoomRow}>
         {ZOOM_PRESETS.map((preset, index) => (
@@ -114,7 +140,7 @@ export default function CaptureScreen() {
 
       <View style={[styles.controls, { paddingBottom: spacing.lg + insets.bottom }]}>
         <PressableOpacity style={styles.sideButton} onPress={handlePickFromLibrary}>
-          <Label>Library</Label>
+          <Ionicons name="images-outline" size={28} color={colors.textPrimary} />
         </PressableOpacity>
         <PressableOpacity
           style={[styles.shutter, !isCameraReady && styles.shutterDisabled]}
@@ -134,8 +160,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  cameraWrapper: {
+    flex: 1,
+  },
   camera: {
     flex: 1,
+  },
+  cameraTransitionOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.background,
   },
   zoomRow: {
     flexDirection: 'row',
