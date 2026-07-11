@@ -1,28 +1,46 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
+import { PressableOpacity } from '../components/PressableOpacity';
 import { colors, spacing } from '../constants/theme';
-import type { Difficulty } from '../lib/scoring';
+
+// The zoom presets shown as on-screen buttons. expo-camera's `zoom` prop
+// is a 0-1 fraction of "however much zoom this device supports" (not a
+// real magnification factor — there's no API to read the device's
+// actual zoom range), so these are calibrated approximations of
+// 1x/2x/5x rather than an exact reading.
+const ZOOM_PRESETS: { label: string; zoom: number }[] = [
+  { label: '1x', zoom: 0 },
+  { label: '2x', zoom: 0.15 },
+  { label: '5x', zoom: 0.4 },
+];
+
+// The standard single wide-angle lens, as opposed to the ultra-wide,
+// telephoto, or virtual multi-lens ("Dual"/"Triple") back cameras.
+// Passed explicitly because leaving `selectedLens` unset has been
+// observed to default to the ultra-wide lens on some devices.
+const WIDE_LENS = 'builtInWideAngleCamera';
 
 export default function CaptureScreen() {
-  const params = useLocalSearchParams<{ difficulty?: string }>();
-  // Route params always come through as strings, so fall back to 'normal'
-  // if it's ever missing rather than trust it blindly.
-  const difficulty: Difficulty = params.difficulty === 'hard' ? 'hard' : 'normal';
-
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
+  const [facing, setFacing] = useState<CameraType>('back');
+  const [zoomIndex, setZoomIndex] = useState(0);
 
   function goToResult(photoUri: string) {
-    router.push({ pathname: '/result', params: { photoUri, difficulty } });
+    // Replace (not push) so the round's Capture <-> Result screens never
+    // pile up in the navigation stack — back always leads to Today.
+    router.replace({ pathname: '/result', params: { photoUri } });
   }
 
   async function handleCapture() {
@@ -46,6 +64,11 @@ export default function CaptureScreen() {
     goToResult(picked.assets[0].uri);
   }
 
+  function handleFlipCamera() {
+    setFacing((current) => (current === 'back' ? 'front' : 'back'));
+    setZoomIndex(0); // the front camera's zoom range is different, so reset to 1x
+  }
+
   // Permission state hasn't loaded yet.
   if (!permission) {
     return <View style={styles.container} />;
@@ -53,15 +76,15 @@ export default function CaptureScreen() {
 
   if (!permission.granted) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.centered}>
         <Label>Camera access is needed to play</Label>
-        <Pressable style={styles.button} onPress={requestPermission}>
+        <PressableOpacity style={styles.button} onPress={requestPermission}>
           <DotText>Grant access</DotText>
-        </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={handlePickFromLibrary}>
+        </PressableOpacity>
+        <PressableOpacity style={styles.secondaryButton} onPress={handlePickFromLibrary}>
           <Label>Use library instead</Label>
-        </Pressable>
-      </View>
+        </PressableOpacity>
+      </SafeAreaView>
     );
   }
 
@@ -70,18 +93,36 @@ export default function CaptureScreen() {
       <CameraView
         ref={cameraRef}
         style={styles.camera}
+        facing={facing}
+        selectedLens={facing === 'back' ? WIDE_LENS : undefined}
+        zoom={ZOOM_PRESETS[zoomIndex].zoom}
         onCameraReady={() => setIsCameraReady(true)}
       />
-      <View style={styles.controls}>
-        <Pressable style={styles.secondaryButton} onPress={handlePickFromLibrary}>
+
+      <View style={styles.zoomRow}>
+        {ZOOM_PRESETS.map((preset, index) => (
+          <PressableOpacity
+            key={preset.label}
+            style={[styles.zoomButton, index === zoomIndex && styles.zoomButtonActive]}
+            onPress={() => setZoomIndex(index)}
+          >
+            <Label style={index === zoomIndex && styles.zoomLabelActive}>{preset.label}</Label>
+          </PressableOpacity>
+        ))}
+      </View>
+
+      <View style={[styles.controls, { paddingBottom: spacing.lg + insets.bottom }]}>
+        <PressableOpacity style={styles.sideButton} onPress={handlePickFromLibrary}>
           <Label>Library</Label>
-        </Pressable>
-        <Pressable
+        </PressableOpacity>
+        <PressableOpacity
           style={[styles.shutter, !isCameraReady && styles.shutterDisabled]}
           onPress={handleCapture}
           disabled={!isCameraReady || isTakingPhoto}
         />
-        <View style={styles.controlsSpacer} />
+        <PressableOpacity style={[styles.sideButton, styles.sideButtonRight]} onPress={handleFlipCamera}>
+          <Label>Flip</Label>
+        </PressableOpacity>
       </View>
     </View>
   );
@@ -95,21 +136,36 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
+  zoomRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  zoomButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  zoomButtonActive: {
+    backgroundColor: colors.surface,
+  },
+  zoomLabelActive: {
+    color: colors.textPrimary,
+  },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  controlsSpacer: {
-    width: 80,
+  sideButton: {
+    width: 72,
   },
-  secondaryButton: {
-    width: 80,
-    alignItems: 'flex-start',
+  sideButtonRight: {
+    alignItems: 'flex-end',
   },
   shutter: {
     width: 72,
@@ -127,12 +183,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
   },
   button: {
     borderWidth: 1,
     borderColor: colors.textPrimary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  secondaryButton: {
+    paddingVertical: spacing.sm,
   },
 });

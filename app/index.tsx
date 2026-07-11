@@ -1,15 +1,17 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ColorSwatch } from '../components/ColorSwatch';
+import { Divider } from '../components/Divider';
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
-import { colors, spacing } from '../constants/theme';
+import { PressableOpacity } from '../components/PressableOpacity';
+import { colors, spacing, typeScale } from '../constants/theme';
+import { PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { nameColor } from '../lib/colorName';
 import { getDailyTarget } from '../lib/dailyColor';
-import type { Difficulty } from '../lib/scoring';
 
 // How many milliseconds are left until the next local midnight, which is
 // when tomorrow's target color takes over.
@@ -28,14 +30,29 @@ function formatCountdown(ms: number): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
+// Frames a child with four corner brackets, like a specimen slide or a
+// viewfinder — the "signature moment" treatment CLAUDE.md asks for
+// around today's target color.
+function SpecimenFrame({ children }: { children: ReactNode }) {
+  return (
+    <View style={styles.specimenFrame}>
+      <View style={[styles.tick, styles.tickTL]} />
+      <View style={[styles.tick, styles.tickTR]} />
+      <View style={[styles.tick, styles.tickBL]} />
+      <View style={[styles.tick, styles.tickBR]} />
+      {children}
+    </View>
+  );
+}
+
 // The "Today" screen: the specimen slide showing today's target color,
-// the difficulty toggle, and the button that starts a capture.
+// and the button that starts a 3-photo round.
 export default function TodayScreen() {
   const router = useRouter();
+  const { resetRound } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
 
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [countdownMs, setCountdownMs] = useState(msUntilNextMidnight());
 
   // Tick the countdown once a second.
@@ -46,109 +63,117 @@ export default function TodayScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  function handleStartRound() {
+    // Clear out any previous (possibly abandoned) round before starting
+    // a fresh one, so shot counting always begins at zero.
+    resetRound();
+    router.push('/capture');
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.topBar}>
         <Label>Color Hunt</Label>
-        <View style={styles.countdownRow}>
+        <View style={styles.countdown}>
           <View style={styles.liveDot} />
-          <Label>Next drop {formatCountdown(countdownMs)}</Label>
+          <View>
+            <Label style={styles.countdownLabel}>Next drop</Label>
+            <DotText style={styles.countdownValue}>{formatCountdown(countdownMs)}</DotText>
+          </View>
         </View>
       </View>
 
-      <View style={styles.specimen}>
-        <ColorSwatch hex={target.hex} size="large" />
-        <DotText style={styles.hex}>{target.hex}</DotText>
+      <Divider />
+
+      <View style={styles.specimenZone}>
+        <SpecimenFrame>
+          <ColorSwatch hex={target.hex} size="large" />
+        </SpecimenFrame>
+        <DotText style={styles.specimenHex}>{target.hex}</DotText>
         <Label>{colorName}</Label>
       </View>
 
-      <View style={styles.controls}>
-        <View style={styles.difficultyRow}>
-          <Label>Difficulty</Label>
-          <View style={styles.toggle}>
-            <Pressable
-              onPress={() => setDifficulty('normal')}
-              style={[styles.toggleButton, difficulty === 'normal' && styles.toggleButtonActive]}
-            >
-              <Label style={difficulty === 'normal' && styles.toggleLabelActive}>Normal</Label>
-            </Pressable>
-            <Pressable
-              onPress={() => setDifficulty('hard')}
-              style={[styles.toggleButton, difficulty === 'hard' && styles.toggleButtonActive]}
-            >
-              <Label style={difficulty === 'hard' && styles.toggleLabelActive}>Hard</Label>
-            </Pressable>
-          </View>
-        </View>
+      <Divider />
 
-        <Pressable
-          style={styles.captureButton}
-          onPress={() => router.push({ pathname: '/capture', params: { difficulty } })}
-        >
-          <DotText style={styles.captureButtonText}>Capture</DotText>
-        </Pressable>
+      <View style={styles.controls}>
+        <Label style={styles.roundInfo}>Round · {PHOTOS_PER_ROUND} photos</Label>
+
+        <PressableOpacity style={styles.captureButton} onPress={handleStartRound}>
+          <DotText style={styles.captureButtonText}>Start Round</DotText>
+        </PressableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
+const TICK_SIZE = 18;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
   },
-  header: {
-    gap: spacing.sm,
-  },
-  countdownRow: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  countdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   liveDot: {
     width: 6,
     height: 6,
     backgroundColor: colors.signal,
   },
-  specimen: {
+  countdownLabel: {
+    textAlign: 'right',
+  },
+  countdownValue: {
+    fontSize: typeScale.value,
+    textAlign: 'right',
+  },
+  specimenZone: {
+    flex: 1,
     alignItems: 'center',
-    gap: spacing.sm,
-  },
-  hex: {
-    fontSize: 20,
-  },
-  controls: {
+    justifyContent: 'center',
     gap: spacing.lg,
   },
-  difficultyRow: {
-    alignItems: 'center',
-    gap: spacing.sm,
+  specimenFrame: {
+    padding: spacing.lg,
   },
-  toggle: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: colors.border,
+  tick: {
+    position: 'absolute',
+    width: TICK_SIZE,
+    height: TICK_SIZE,
+    borderColor: colors.textMuted,
   },
-  toggleButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+  tickTL: { top: 0, left: 0, borderTopWidth: 1, borderLeftWidth: 1 },
+  tickTR: { top: 0, right: 0, borderTopWidth: 1, borderRightWidth: 1 },
+  tickBL: { bottom: 0, left: 0, borderBottomWidth: 1, borderLeftWidth: 1 },
+  tickBR: { bottom: 0, right: 0, borderBottomWidth: 1, borderRightWidth: 1 },
+  specimenHex: {
+    fontSize: typeScale.specimen,
   },
-  toggleButtonActive: {
-    backgroundColor: colors.surface,
+  controls: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    gap: spacing.lg,
   },
-  toggleLabelActive: {
-    color: colors.textPrimary,
+  roundInfo: {
+    textAlign: 'center',
   },
   captureButton: {
     borderWidth: 1,
     borderColor: colors.textPrimary,
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
   },
   captureButtonText: {
-    fontSize: 20,
+    fontSize: typeScale.button,
   },
 });

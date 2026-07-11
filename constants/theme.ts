@@ -18,11 +18,25 @@ export const fonts = {
   display: 'DotGothic16_400Regular',
 };
 
+// A consistent spacing scale. Every gap, padding, and margin in the app
+// should come from here rather than an arbitrary number, so spacing
+// reads as deliberate instead of ad hoc.
 export const spacing = {
   xs: 4,
   sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+  xxxl: 48,
+};
+
+// Type scale: real size contrast between the different roles text plays
+// on screen, from the huge Result score down to small caption labels.
+export const typeScale = {
+  display: 96, // the Result score
+  specimen: 28, // hex value under the big Today target swatch
+  value: 20, // hex value under the small Result swatches, countdown digits
+  button: 17, // button label text
+  label: 11, // small uppercase caption labels
 };

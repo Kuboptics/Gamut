@@ -1,23 +1,32 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ColorSwatch } from '../components/ColorSwatch';
+import { Divider } from '../components/Divider';
 import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
 import { PixelSampler } from '../components/PixelSampler';
-import { colors, spacing } from '../constants/theme';
-import { rgbToHex, type RGB } from '../lib/color';
+import { PressableOpacity } from '../components/PressableOpacity';
+import { colors, spacing, typeScale } from '../constants/theme';
+import { PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { findBestPatch, type BestPatch } from '../lib/bestPatch';
+import { rgbToHex, type RGB } from '../lib/color';
 import { getDailyTarget } from '../lib/dailyColor';
-import { scoreFromDistance, verdictForScore, type Difficulty } from '../lib/scoring';
+import { scoreFromDistance, verdictForScore } from '../lib/scoring';
 
 export default function ResultScreen() {
-  const params = useLocalSearchParams<{ photoUri: string; difficulty?: string }>();
-  const difficulty: Difficulty = params.difficulty === 'hard' ? 'hard' : 'normal';
-
+  const params = useLocalSearchParams<{ photoUri: string }>();
   const router = useRouter();
+  const { scores, submitScore } = useRound();
+
+  // Lock in which shot this is at mount time, before submitScore (below)
+  // changes the round's score count out from under us.
+  const [shotNumber] = useState(() => scores.length + 1);
+  const isLastShot = shotNumber === PHOTOS_PER_ROUND;
+
   // Same date -> same seeded target as the Today screen, so this always
   // scores against the color the player was actually shown.
   const target = getDailyTarget();
@@ -27,7 +36,9 @@ export default function ResultScreen() {
   const [error, setError] = useState<string | null>(null);
 
   function handleSample(tileColors: RGB[]) {
-    setBestPatch(findBestPatch(tileColors, target.rgb));
+    const patch = findBestPatch(tileColors, target.rgb);
+    setBestPatch(patch);
+    submitScore(scoreFromDistance(patch.distance));
   }
 
   useEffect(() => {
@@ -56,47 +67,73 @@ export default function ResultScreen() {
     };
   }, [params.photoUri]);
 
-  const score = bestPatch ? scoreFromDistance(bestPatch.distance, difficulty) : null;
+  const score = bestPatch ? scoreFromDistance(bestPatch.distance) : null;
   const verdict = score !== null ? verdictForScore(score) : null;
 
+  function handleContinue() {
+    // Replace (not push), matching capture.tsx, so the round's screens
+    // never pile up in the navigation stack.
+    router.replace(isLastShot ? '/summary' : '/capture');
+  }
+
+  function handleRetryPhoto() {
+    router.replace('/capture');
+  }
+
   return (
-    <View style={styles.container}>
-      {!bestPatch && !error && <Label>Measuring…</Label>}
-      {error && (
-        <>
-          <Label>{error}</Label>
-          <Pressable style={styles.button} onPress={() => router.back()}>
-            <DotText>Try again</DotText>
-          </Pressable>
-        </>
-      )}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Label>
+          Shot {shotNumber} of {PHOTOS_PER_ROUND}
+        </Label>
+      </View>
 
-      {bestPatch && score !== null && (
-        <>
-          <DotText style={styles.score}>{score}</DotText>
-          <Label>{verdict}</Label>
+      <Divider />
 
-          <View style={styles.swatchRow}>
-            <View style={styles.swatchColumn}>
-              <ColorSwatch hex={target.hex} size="small" />
-              <Label>Target</Label>
-              <DotText style={styles.hex}>{target.hex}</DotText>
+      <View style={styles.body}>
+        {!bestPatch && !error && <Label>Measuring…</Label>}
+        {error && <Label>{error}</Label>}
+
+        {bestPatch && score !== null && (
+          <>
+            <DotText style={styles.score}>{score}%</DotText>
+            <Label>{verdict}</Label>
+
+            <View style={styles.swatchRow}>
+              <View style={styles.swatchColumn}>
+                <ColorSwatch hex={target.hex} size="small" />
+                <Label>Target</Label>
+                <DotText style={styles.hex}>{target.hex}</DotText>
+              </View>
+              <View style={styles.swatchColumn}>
+                <ColorSwatch hex={rgbToHex(bestPatch.color)} size="small" />
+                <Label>Your shot</Label>
+                <DotText style={styles.hex}>{rgbToHex(bestPatch.color)}</DotText>
+              </View>
             </View>
-            <View style={styles.swatchColumn}>
-              <ColorSwatch hex={rgbToHex(bestPatch.color)} size="small" />
-              <Label>Your shot</Label>
-              <DotText style={styles.hex}>{rgbToHex(bestPatch.color)}</DotText>
-            </View>
+          </>
+        )}
+      </View>
+
+      {(bestPatch || error) && (
+        <>
+          <Divider />
+          <View style={styles.actions}>
+            {error ? (
+              <PressableOpacity style={styles.button} onPress={handleRetryPhoto}>
+                <DotText>Try again</DotText>
+              </PressableOpacity>
+            ) : (
+              <PressableOpacity style={styles.button} onPress={handleContinue}>
+                <DotText>{isLastShot ? 'See Results' : 'Next Shot'}</DotText>
+              </PressableOpacity>
+            )}
           </View>
-
-          <Pressable style={styles.button} onPress={() => router.replace('/')}>
-            <DotText>Done</DotText>
-          </Pressable>
         </>
       )}
 
       <PixelSampler imageUri={sampleImageUri} onSample={handleSample} onError={setError} />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -104,29 +141,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  header: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  body: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
   },
   score: {
-    fontSize: 72,
+    fontSize: typeScale.display,
   },
   swatchRow: {
     flexDirection: 'row',
-    gap: spacing.xl,
+    gap: spacing.xxl,
+    marginTop: spacing.md,
   },
   swatchColumn: {
     alignItems: 'center',
     gap: spacing.xs,
   },
   hex: {
-    fontSize: 16,
+    fontSize: typeScale.value,
+  },
+  actions: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
   },
   button: {
     borderWidth: 1,
     borderColor: colors.textPrimary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
   },
 });

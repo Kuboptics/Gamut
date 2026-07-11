@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { colors } from '../constants/theme';
+import { RoundProvider } from '../context/RoundContext';
 
 // Keep the splash screen up until the dot-matrix font has loaded, so we
 // never flash default system text before switching to the real font.
@@ -24,7 +25,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <RoundProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -32,6 +33,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       />
-    </>
+    </RoundProvider>
   );
 }

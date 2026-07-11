@@ -3,27 +3,22 @@
 
 import { rgbToLab, deltaE76, type RGB } from './color';
 
-export type Difficulty = 'normal' | 'hard';
-
-// Hard mode divides by a smaller number, so the same color distance
-// (deltaE) costs more points — the same miss hurts more.
-const SCALE_BY_DIFFICULTY: Record<Difficulty, number> = {
-  normal: 62,
-  hard: 40,
-};
+// Fixed scoring scale: how much Lab deltaE distance costs 100 points'
+// worth of score. (Previously configurable via a Normal/Hard difficulty
+// toggle; Phase 1 now uses one fixed scale for every shot.)
+const SCALE = 62;
 
 // Turns a Lab deltaE distance directly into a 0-100 score. Exposed on
 // its own so callers that already have a distance (like the best-patch
 // scan in lib/bestPatch.ts) don't need a target/shot RGB pair.
-export function scoreFromDistance(distance: number, difficulty: Difficulty): number {
-  const scale = SCALE_BY_DIFFICULTY[difficulty];
-  const rawScore = Math.round(100 * (1 - distance / scale));
+export function scoreFromDistance(distance: number): number {
+  const rawScore = Math.round(100 * (1 - distance / SCALE));
   return Math.max(0, rawScore);
 }
 
-export function scoreMatch(target: RGB, shot: RGB, difficulty: Difficulty): number {
+export function scoreMatch(target: RGB, shot: RGB): number {
   const distance = deltaE76(rgbToLab(target), rgbToLab(shot));
-  return scoreFromDistance(distance, difficulty);
+  return scoreFromDistance(distance);
 }
 
 export function verdictForScore(score: number): string {
