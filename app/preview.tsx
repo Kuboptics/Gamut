@@ -16,6 +16,11 @@ import type { RGB } from '../lib/color';
 import { getDailyTarget } from '../lib/dailyColor';
 import { scoreFromDistance } from '../lib/scoring';
 
+// A short instrument-style hint, low on the screen. Rotates by shot
+// number within the round rather than randomly, so each new photo in a
+// round gets a different (but predictable) line.
+const FRAMING_TIPS = ['FILL THE FRAME WITH THE COLOR', 'EVEN A SMALL PATCH COUNTS', 'GET CLOSE FOR A TRUE MATCH'];
+
 // Shows the photo the player just took or picked, with Keep/Retake — no
 // score is shown here. The photo is silently scored in the background
 // (so Keep can respond instantly) but that score stays hidden until the
@@ -26,6 +31,7 @@ export default function PreviewScreen() {
   const router = useRouter();
   const { scores, bankPhoto } = useRound();
   const target = getDailyTarget();
+  const framingTip = FRAMING_TIPS[scores.length % FRAMING_TIPS.length];
 
   const [sampleImageUri, setSampleImageUri] = useState<string | null>(null);
   const [bestPatch, setBestPatch] = useState<BestPatch | null>(null);
@@ -88,6 +94,10 @@ export default function PreviewScreen() {
         <Image source={{ uri: params.photoUri }} style={styles.photo} resizeMode="contain" />
       </View>
 
+      <View style={styles.tipRow}>
+        <DotText style={styles.tip}>{framingTip}</DotText>
+      </View>
+
       <Divider />
 
       <View style={styles.actions}>
@@ -130,6 +140,15 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  tipRow: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  tip: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
   actions: {
     flexDirection: 'row',

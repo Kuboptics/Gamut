@@ -125,14 +125,11 @@ export default function TodayScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {!isRoundComplete && (
-        <View style={styles.signatureRow}>
-          <Label style={styles.signature}>by Kuboptics</Label>
-        </View>
-      )}
-
       <View style={styles.topBar}>
-        <Label>Color Hunt</Label>
+        <View style={styles.wordmark}>
+          <Label>Color Hunt</Label>
+          {!isRoundComplete && <Label style={styles.signature}>by Kuboptics</Label>}
+        </View>
         <View style={styles.countdown}>
           <View style={styles.liveDot} />
           <View>
@@ -184,19 +181,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  signatureRow: {
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-  },
-  signature: {
-    fontSize: 10,
-  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
+  },
+  wordmark: {
+    alignItems: 'flex-start',
+  },
+  signature: {
+    fontSize: 10,
+    marginTop: 2,
   },
   countdown: {
     flexDirection: 'row',

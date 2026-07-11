@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -8,9 +9,26 @@ import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { colors, spacing, typeScale } from '../constants/theme';
 
+type ChoiceOptionProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+};
+
+// One of the two equally-weighted option blocks below.
+function ChoiceOption({ icon, label, onPress }: ChoiceOptionProps) {
+  return (
+    <PressableOpacity style={styles.option} onPress={onPress}>
+      <Ionicons name={icon} size={40} color={colors.textPrimary} />
+      <DotText style={styles.optionLabel}>{label}</DotText>
+    </PressableOpacity>
+  );
+}
+
 // Lets the player add a photo via the phone's own system camera (its
 // native lenses, zoom, and quality handling — no in-app camera view to
-// maintain) or from the photo library.
+// maintain) or from the photo library. Camera and Gallery are given
+// equal visual weight, since they're equally valid ways to add a photo.
 export default function CaptureScreen() {
   const router = useRouter();
 
@@ -47,12 +65,8 @@ export default function CaptureScreen() {
       </View>
 
       <View style={styles.body}>
-        <PressableOpacity style={styles.cameraButton} onPress={handleTakePhoto}>
-          <DotText style={styles.cameraButtonText}>Camera</DotText>
-        </PressableOpacity>
-        <PressableOpacity style={styles.libraryButton} onPress={handlePickFromLibrary}>
-          <Label>Gallery</Label>
-        </PressableOpacity>
+        <ChoiceOption icon="camera-outline" label="Camera" onPress={handleTakePhoto} />
+        <ChoiceOption icon="images-outline" label="Gallery" onPress={handlePickFromLibrary} />
       </View>
     </SafeAreaView>
   );
@@ -69,22 +83,19 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
     gap: spacing.lg,
   },
-  cameraButton: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: colors.textPrimary,
+  option: {
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: spacing.xl,
+    justifyContent: 'center',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  cameraButtonText: {
+  optionLabel: {
     fontSize: typeScale.button,
-  },
-  libraryButton: {
-    paddingVertical: spacing.sm,
   },
 });
