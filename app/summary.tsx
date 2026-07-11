@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -9,6 +10,7 @@ import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { colors, spacing, typeScale } from '../constants/theme';
 import { PASS_THRESHOLD, useRound } from '../context/RoundContext';
+import { useStreak } from '../context/StreakContext';
 
 // The reveal fades in one beat at a time — verdict, then average, then
 // the caption, then the individual shots — rather than appearing all at
@@ -26,9 +28,15 @@ function revealStep(step: number) {
 export default function SummaryScreen() {
   const router = useRouter();
   const { scores, resetRound } = useRound();
+  const { recordPass } = useStreak();
 
   const average = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
   const passed = average >= PASS_THRESHOLD;
+
+  // Record the streak once, the moment a passing result is revealed.
+  useEffect(() => {
+    if (passed) recordPass();
+  }, [passed, recordPass]);
 
   function handleRetry() {
     resetRound();

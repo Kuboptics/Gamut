@@ -86,8 +86,6 @@ export default function PreviewScreen() {
 
       <View style={styles.body}>
         <Image source={{ uri: params.photoUri }} style={styles.photo} resizeMode="cover" />
-        {!bestPatch && !error && <Label style={styles.status}>Preparing…</Label>}
-        {error && <Label style={styles.status}>{error}</Label>}
       </View>
 
       <Divider />
@@ -124,16 +122,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-    gap: spacing.lg,
   },
   photo: {
     width: '100%',
     aspectRatio: 3 / 4,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  status: {
-    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row',

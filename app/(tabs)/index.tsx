@@ -3,15 +3,15 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ColorSwatch } from '../components/ColorSwatch';
-import { Divider } from '../components/Divider';
-import { DotText } from '../components/DotText';
-import { Label } from '../components/Label';
-import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, spacing, typeScale } from '../constants/theme';
-import { PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
-import { nameColor } from '../lib/colorName';
-import { getDailyTarget } from '../lib/dailyColor';
+import { ColorSwatch } from '../../components/ColorSwatch';
+import { Divider } from '../../components/Divider';
+import { DotText } from '../../components/DotText';
+import { Label } from '../../components/Label';
+import { PressableOpacity } from '../../components/PressableOpacity';
+import { colors, spacing, typeScale } from '../../constants/theme';
+import { PHOTOS_PER_ROUND, useRound } from '../../context/RoundContext';
+import { nameColor } from '../../lib/colorName';
+import { getDailyTarget } from '../../lib/dailyColor';
 
 // How many milliseconds are left until the next local midnight, which is
 // when tomorrow's target color takes over.
@@ -88,6 +88,12 @@ export default function TodayScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {!isRoundComplete && (
+        <View style={styles.signatureRow}>
+          <Label style={styles.signature}>by Kuboptics</Label>
+        </View>
+      )}
+
       <View style={styles.topBar}>
         <Label>Color Hunt</Label>
         <View style={styles.countdown}>
@@ -137,6 +143,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  signatureRow: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+  },
+  signature: {
+    fontSize: 10,
   },
   topBar: {
     flexDirection: 'row',

@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 
 import { colors } from '../constants/theme';
 import { RoundProvider } from '../context/RoundContext';
+import { StreakProvider } from '../context/StreakContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 // Keep the splash screen up until the dot-matrix font has loaded, so we
@@ -32,15 +33,17 @@ export default function RootLayout() {
 
   return (
     <RoundProvider>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.background },
-          animation: reducedMotion ? 'none' : 'fade',
-          animationDuration: SCREEN_TRANSITION_DURATION_MS,
-        }}
-      />
+      <StreakProvider>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.background },
+            animation: reducedMotion ? 'none' : 'fade',
+            animationDuration: SCREEN_TRANSITION_DURATION_MS,
+          }}
+        />
+      </StreakProvider>
     </RoundProvider>
   );
 }
