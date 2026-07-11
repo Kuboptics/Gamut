@@ -1,0 +1,90 @@
+// Color math: converting between color formats, and measuring how
+// different two colors look to a human eye.
+
+export type RGB = { r: number; g: number; b: number };
+export type Lab = { L: number; a: number; b: number };
+
+// Converts a color from HSL (hue/saturation/lightness) to RGB.
+// h is in degrees (0-360). s and l are percentages (0-100).
+export function hslToRgb(h: number, s: number, l: number): RGB {
+  const sNorm = s / 100;
+  const lNorm = l / 100;
+
+  // "Chroma" is how intense the color is before we account for lightness.
+  const chroma = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
+  const hPrime = h / 60;
+  const x = chroma * (1 - Math.abs((hPrime % 2) - 1));
+  const m = lNorm - chroma / 2;
+
+  // The color wheel is split into 6 sixty-degree slices; each slice has
+  // a different formula for turning chroma/x into raw red/green/blue.
+  let rPrime = 0;
+  let gPrime = 0;
+  let bPrime = 0;
+  if (hPrime < 1) [rPrime, gPrime, bPrime] = [chroma, x, 0];
+  else if (hPrime < 2) [rPrime, gPrime, bPrime] = [x, chroma, 0];
+  else if (hPrime < 3) [rPrime, gPrime, bPrime] = [0, chroma, x];
+  else if (hPrime < 4) [rPrime, gPrime, bPrime] = [0, x, chroma];
+  else if (hPrime < 5) [rPrime, gPrime, bPrime] = [x, 0, chroma];
+  else [rPrime, gPrime, bPrime] = [chroma, 0, x];
+
+  return {
+    r: Math.round((rPrime + m) * 255),
+    g: Math.round((gPrime + m) * 255),
+    b: Math.round((bPrime + m) * 255),
+  };
+}
+
+// Formats an RGB color as a hex string like "#3A7FD5".
+export function rgbToHex({ r, g, b }: RGB): string {
+  const toHex = (channel: number) => channel.toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+// sRGB (the color space photos and screens use) applies a gamma curve to
+// each channel. Lab math needs "linear" light values, so this undoes it.
+function srgbChannelToLinear(channel: number): number {
+  const normalized = channel / 255;
+  return normalized <= 0.04045
+    ? normalized / 12.92
+    : Math.pow((normalized + 0.055) / 1.055, 2.4);
+}
+
+// Converts RGB to CIE Lab, a color space designed so that equal distances
+// correspond to roughly equal differences in how humans perceive color.
+// This goes RGB -> linear RGB -> CIE XYZ -> Lab, which is the standard path.
+export function rgbToLab({ r, g, b }: RGB): Lab {
+  const rLin = srgbChannelToLinear(r);
+  const gLin = srgbChannelToLinear(g);
+  const bLin = srgbChannelToLinear(b);
+
+  // Linear RGB -> XYZ using the standard sRGB/D65 conversion matrix.
+  const x = rLin * 0.4124 + gLin * 0.3576 + bLin * 0.1805;
+  const y = rLin * 0.2126 + gLin * 0.7152 + bLin * 0.0722;
+  const z = rLin * 0.0193 + gLin * 0.1192 + bLin * 0.9505;
+
+  // XYZ -> Lab, scaled against the D65 "reference white" point.
+  const xNorm = x / 0.95047;
+  const yNorm = y / 1.0;
+  const zNorm = z / 1.08883;
+
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const fx = f(xNorm);
+  const fy = f(yNorm);
+  const fz = f(zNorm);
+
+  return {
+    L: 116 * fy - 16,
+    a: 500 * (fx - fy),
+    b: 200 * (fy - fz),
+  };
+}
+
+// deltaE76: the straight-line distance between two Lab colors. Bigger
+// number = more different-looking colors.
+export function deltaE76(a: Lab, b: Lab): number {
+  const dL = a.L - b.L;
+  const da = a.a - b.a;
+  const db = a.b - b.b;
+  return Math.sqrt(dL * dL + da * da + db * db);
+}
