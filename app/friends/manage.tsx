@@ -1,20 +1,20 @@
 import * as Clipboard from 'expo-clipboard';
-import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Share, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BackButton } from '../components/BackButton';
-import { BodyText } from '../components/BodyText';
-import { HeroText } from '../components/HeroText';
-import { Label } from '../components/Label';
-import { Panel } from '../components/Panel';
-import { PressableOpacity } from '../components/PressableOpacity';
-import { PrimaryButton } from '../components/PrimaryButton';
-import { ReadoutText } from '../components/ReadoutText';
-import { TextField } from '../components/TextField';
-import { colors, fonts, radius, spacing, typeScale } from '../constants/theme';
-import { useAuth } from '../context/AuthContext';
+import { BackButton } from '../../components/BackButton';
+import { BodyText } from '../../components/BodyText';
+import { HeroText } from '../../components/HeroText';
+import { Label } from '../../components/Label';
+import { Panel } from '../../components/Panel';
+import { PressableOpacity } from '../../components/PressableOpacity';
+import { PrimaryButton } from '../../components/PrimaryButton';
+import { ReadoutText } from '../../components/ReadoutText';
+import { TextField } from '../../components/TextField';
+import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 import {
   ensureProfile,
   fetchFriends,
@@ -25,21 +25,20 @@ import {
   type Friend,
   type IncomingRequest,
   type OutgoingRequest,
-} from '../lib/friends';
-import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../lib/leaderboard';
+} from '../../lib/friends';
 
-// Friend codes + mutual-accept requests, display names, and a friends
-// leaderboard/feed built from synced round_results. Reachable only from
-// Settings' Account panel while signed in.
-export default function FriendsScreen() {
+// Friend codes, requests, and connections — everything that manages who
+// you're friends with, tucked behind the icon button on the leaderboard
+// screen (app/friends/index.tsx) rather than competing with it for
+// attention. Reachable only while signed in.
+export default function ManageFriendsScreen() {
   const { user } = useAuth();
-  const userId = user!.id; // this screen is only ever reachable while signed in
+  const userId = user!.id;
 
   const [myCode, setMyCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadError, setLoadError] = useState(false);
 
   const [codeInput, setCodeInput] = useState('');
@@ -56,25 +55,11 @@ export default function FriendsScreen() {
     ensureProfile(userId, fallbackName)
       .then((profile) => setMyCode(profile.friendCode))
       .catch(() => setLoadError(true));
-
     fetchIncomingRequests(userId).then(setIncoming).catch(() => setLoadError(true));
     fetchOutgoingRequests(userId).then(setOutgoing).catch(() => setLoadError(true));
-
-    fetchFriends(userId)
-      .then((friendList) => {
-        setFriends(friendList);
-        return fetchLeaderboard(
-          userId,
-          friendList.map((friend) => friend.userId)
-        );
-      })
-      .then((entries) => setLeaderboard(rankLeaderboard(entries)))
-      .catch(() => setLoadError(true));
+    fetchFriends(userId).then(setFriends).catch(() => setLoadError(true));
   }, [userId, email]);
 
-  // Refetches every time this screen gains focus — e.g. coming back to it
-  // after accepting a request or playing today's round — not just once
-  // on first mount.
   useFocusEffect(refresh);
 
   async function handleCopyCode() {
@@ -82,6 +67,15 @@ export default function FriendsScreen() {
     await Clipboard.setStringAsync(myCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleShareCode() {
+    if (!myCode) return;
+    try {
+      await Share.share({ message: `Add me on Gamut — my friend code is ${myCode}` });
+    } catch {
+      // User cancelled the share sheet or it failed; nothing to recover.
+    }
   }
 
   async function handleSendRequest() {
@@ -114,14 +108,12 @@ export default function FriendsScreen() {
     }
   }
 
-  const feed = leaderboard.filter((entry) => entry.userId !== userId);
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <BackButton />
         <View style={styles.headerText}>
-          <HeroText style={styles.title}>Friends</HeroText>
+          <HeroText style={styles.title}>Manage Friends</HeroText>
         </View>
         <View style={styles.headerSpacer} />
       </View>
@@ -139,7 +131,10 @@ export default function FriendsScreen() {
           {myCode ? (
             <>
               <ReadoutText style={styles.code}>{myCode}</ReadoutText>
-              <ActionButton label={copied ? 'Copied' : 'Copy Code'} tone="neutral" onPress={handleCopyCode} />
+              <View style={styles.buttonRow}>
+                <ActionButton label={copied ? 'Copied' : 'Copy'} tone="neutral" onPress={handleCopyCode} />
+                <ActionButton label="Share" tone="neutral" onPress={handleShareCode} />
+              </View>
             </>
           ) : (
             <BodyText style={styles.note}>Loading your code…</BodyText>
@@ -186,7 +181,12 @@ export default function FriendsScreen() {
                 <BodyText style={styles.rowLabel}>{request.senderDisplayName}</BodyText>
                 <View style={styles.rowActions}>
                   <ActionButton label="Decline" tone="signal" onPress={() => handleRespond(request.id, 'declined')} />
-                  <ActionButton label="Accept" tone="positive" onPress={() => handleRespond(request.id, 'accepted')} />
+                  <ActionButton
+                    label="Accept"
+                    tone="positive"
+                    filled
+                    onPress={() => handleRespond(request.id, 'accepted')}
+                  />
                 </View>
               </View>
             ))
@@ -219,45 +219,6 @@ export default function FriendsScreen() {
             ))
           )}
         </Panel>
-
-        <Panel style={styles.panel}>
-          <Label>Leaderboard</Label>
-          {leaderboard.map((entry, index) => (
-            <View key={entry.userId} style={styles.row}>
-              <View style={styles.rowLabelGroup}>
-                <Label style={styles.rank}>{index + 1}</Label>
-                <View>
-                  <BodyText style={styles.rowLabel}>{entry.userId === userId ? 'You' : entry.displayName}</BodyText>
-                  <Label>{todayStatusLabel(entry)}</Label>
-                </View>
-              </View>
-              <View style={styles.rowLabelGroup}>
-                <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
-                <StatusDot entry={entry} />
-              </View>
-            </View>
-          ))}
-        </Panel>
-
-        <Panel style={styles.panel}>
-          <Label>Feed</Label>
-          {friends.length === 0 ? (
-            <BodyText style={styles.note}>Add a friend to see their progress here.</BodyText>
-          ) : (
-            feed.map((entry) => (
-              <View key={entry.userId} style={styles.row}>
-                <View>
-                  <BodyText style={styles.rowLabel}>{entry.displayName}</BodyText>
-                  <Label>{todayStatusLabel(entry)}</Label>
-                </View>
-                <View style={styles.rowLabelGroup}>
-                  <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
-                  <StatusDot entry={entry} />
-                </View>
-              </View>
-            ))
-          )}
-        </Panel>
       </ScrollView>
     </SafeAreaView>
   );
@@ -271,33 +232,33 @@ const TONE_COLOR: Record<ActionButtonTone, string> = {
   neutral: colors.textPrimary,
 };
 
-// A small, obviously-tappable bordered button for row-level actions
-// (Copy Code, Accept, Decline) — deliberately not `PrimaryButton` (that's
-// reserved for one full-width main action per screen) and deliberately
-// not plain tappable text, which is the exact confusion this replaces.
-function ActionButton({ label, tone, onPress }: { label: string; tone: ActionButtonTone; onPress: () => void }) {
+// A small, obviously-tappable button for row-level actions (Copy, Share,
+// Accept, Decline) — deliberately not `PrimaryButton` (reserved for one
+// full-width main action per screen) and deliberately not plain tappable
+// text. `filled` gives Accept real visual weight against Decline's
+// outline, since the two are genuinely differently-weighted actions.
+function ActionButton({
+  label,
+  tone,
+  onPress,
+  filled = false,
+}: {
+  label: string;
+  tone: ActionButtonTone;
+  onPress: () => void;
+  filled?: boolean;
+}) {
   const toneColor = TONE_COLOR[tone];
-  const style: StyleProp<ViewStyle> = [styles.actionButton, { borderColor: toneColor }];
+  const style: StyleProp<ViewStyle> = [
+    styles.actionButton,
+    filled ? { backgroundColor: toneColor } : { borderColor: toneColor },
+  ];
+  const labelColor = filled ? colors.background : toneColor;
   return (
     <PressableOpacity style={style} onPress={onPress}>
-      <BodyText style={[styles.actionButtonLabel, { color: toneColor }]}>{label}</BodyText>
+      <BodyText style={[styles.actionButtonLabel, { color: labelColor }]}>{label}</BodyText>
     </PressableOpacity>
   );
-}
-
-// Green if passed today, red if played but failed, muted if not played
-// yet — the same pass/fail dot language as app/day-detail.tsx, with one
-// added neutral state.
-function StatusDot({ entry }: { entry: LeaderboardEntry }) {
-  const style = !entry.playedToday ? styles.statusDotPending : entry.passedToday ? styles.statusDotPass : styles.statusDotFail;
-  return <View style={[styles.statusDot, style]} />;
-}
-
-// "73% · Pass", "41% · Fail", or "Not yet" — plain text for now (see
-// Stage notes: visual design for this is a separate pass).
-function todayStatusLabel(entry: LeaderboardEntry): string {
-  if (!entry.playedToday) return 'Not yet';
-  return `${entry.todayAverage}% · ${entry.passedToday ? 'Pass' : 'Fail'}`;
 }
 
 const styles = StyleSheet.create({
@@ -347,6 +308,10 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -374,22 +339,9 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
-  rowLabelGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
   rowLabel: {
     fontFamily: fonts.primarySemiBold,
     fontSize: typeScale.button,
-  },
-  rank: {
-    width: 16,
-  },
-  streakValue: {
-    fontFamily: fonts.primarySemiBold,
-    fontSize: typeScale.button,
-    fontVariant: ['tabular-nums'],
   },
   rowActions: {
     flexDirection: 'row',
@@ -406,19 +358,5 @@ const styles = StyleSheet.create({
     fontSize: typeScale.label,
     textTransform: 'uppercase',
     letterSpacing: 1,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: radius.sm,
-  },
-  statusDotPass: {
-    backgroundColor: colors.positive,
-  },
-  statusDotFail: {
-    backgroundColor: colors.signal,
-  },
-  statusDotPending: {
-    backgroundColor: colors.textMuted,
   },
 });

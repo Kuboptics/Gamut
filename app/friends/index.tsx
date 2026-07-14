@@ -1,0 +1,273 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { BackButton } from '../../components/BackButton';
+import { BodyText } from '../../components/BodyText';
+import { FlameIcon } from '../../components/FlameIcon';
+import { HeroText } from '../../components/HeroText';
+import { Label } from '../../components/Label';
+import { Panel } from '../../components/Panel';
+import { PressableOpacity } from '../../components/PressableOpacity';
+import { PrimaryButton } from '../../components/PrimaryButton';
+import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+import { fetchFriends, fetchIncomingRequests } from '../../lib/friends';
+import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
+
+// The friends leaderboard — the payoff screen, front and center. Friend
+// management (code, requests, add-a-friend) lives behind the icon button
+// in the header, on app/friends/manage.tsx, mirroring how Instagram/
+// Strava tuck people-management behind the board/feed you actually look
+// at day to day. Reachable only from Settings' Account panel while
+// signed in.
+export default function LeaderboardScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const userId = user!.id; // this screen is only ever reachable while signed in
+
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [hasFriends, setHasFriends] = useState(false);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  const [loadError, setLoadError] = useState(false);
+
+  const refresh = useCallback(() => {
+    setLoadError(false);
+
+    fetchIncomingRequests(userId)
+      .then((requests) => setPendingRequestCount(requests.length))
+      .catch(() => {});
+
+    fetchFriends(userId)
+      .then((friendList) => {
+        setHasFriends(friendList.length > 0);
+        return fetchLeaderboard(
+          userId,
+          friendList.map((friend) => friend.userId)
+        );
+      })
+      .then((entries) => setLeaderboard(rankLeaderboard(entries)))
+      .catch(() => setLoadError(true));
+  }, [userId]);
+
+  // Refetches every time this screen gains focus — e.g. coming back from
+  // Manage after accepting a request, or from playing today's round.
+  useFocusEffect(refresh);
+
+  const [leader, ...rest] = leaderboard;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <BackButton />
+        <View style={styles.headerText}>
+          <HeroText style={styles.title}>Friends</HeroText>
+        </View>
+        <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
+          <Ionicons name="person-add-outline" size={20} color={colors.textMuted} />
+          {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
+        </PressableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {loadError && (
+          <Panel style={styles.panel}>
+            <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
+            <PrimaryButton label="Try Again" onPress={refresh} />
+          </Panel>
+        )}
+
+        {leader && <LeaderRow entry={leader} isYou={leader.userId === userId} />}
+
+        {rest.length > 0 && (
+          <Panel style={styles.panel}>
+            {rest.map((entry, index) => (
+              <RankRow key={entry.userId} entry={entry} rank={index + 2} isYou={entry.userId === userId} />
+            ))}
+          </Panel>
+        )}
+
+        {!hasFriends && (
+          <Panel style={styles.panel}>
+            <Label>No Friends Yet</Label>
+            <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
+            <PrimaryButton label="Manage Friends" onPress={() => router.push('/friends/manage')} />
+          </Panel>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// "73% · Pass", "41% · Fail", or "Not yet".
+function todayStatusLabel(entry: LeaderboardEntry): string {
+  if (!entry.playedToday) return 'Not yet';
+  return `${entry.todayAverage}% · ${entry.passedToday ? 'Pass' : 'Fail'}`;
+}
+
+// Rank 1 gets its own panel and visual weight — a signal-red accent
+// border, the streak in HeroText with a larger flame, rather than just
+// being the top row of a plain list. Still just one accent color, no
+// trophy/gradient. The signed-in user's own row (whether or not they're
+// #1) additionally gets a background tint so it's instantly findable.
+function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }) {
+  return (
+    <Panel style={[styles.leaderPanel, isYou && styles.youTint]}>
+      <View style={styles.leaderRow}>
+        <View style={styles.leaderIdentity}>
+          <Label style={styles.leaderRank}>1</Label>
+          <View>
+            <BodyText style={styles.leaderName}>{isYou ? 'You' : entry.displayName}</BodyText>
+            <Label>{todayStatusLabel(entry)}</Label>
+          </View>
+        </View>
+        <View style={styles.streakGroup}>
+          <HeroText style={styles.leaderStreak}>{entry.streak}</HeroText>
+          <FlameIcon size={28} />
+        </View>
+      </View>
+    </Panel>
+  );
+}
+
+function RankRow({ entry, rank, isYou }: { entry: LeaderboardEntry; rank: number; isYou: boolean }) {
+  return (
+    <View style={[styles.row, isYou && styles.youTint]}>
+      <View style={styles.rowIdentity}>
+        <Label style={styles.rank}>{rank}</Label>
+        <View>
+          <BodyText style={styles.rowLabel}>{isYou ? 'You' : entry.displayName}</BodyText>
+          <Label>{todayStatusLabel(entry)}</Label>
+        </View>
+      </View>
+      <View style={styles.streakGroup}>
+        <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
+        <FlameIcon size={16} />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  headerText: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: typeScale.value,
+  },
+  manageButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 8,
+    height: 8,
+    borderRadius: radius.sm,
+    backgroundColor: colors.signal,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl,
+  },
+  panel: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    gap: spacing.md,
+  },
+  note: {
+    color: colors.textMuted,
+  },
+  error: {
+    color: colors.signal,
+  },
+  // The one deliberate accent on the whole screen — a signal-red left
+  // border marking the #1 spot, not a fill/gradient.
+  leaderPanel: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.signal,
+  },
+  leaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leaderIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  leaderRank: {
+    color: colors.signal,
+    width: 20,
+  },
+  leaderName: {
+    fontFamily: fonts.primarySemiBold,
+    fontSize: typeScale.value,
+  },
+  streakGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  leaderStreak: {
+    fontSize: typeScale.specimen,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  rowIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  rowLabel: {
+    fontFamily: fonts.primarySemiBold,
+    fontSize: typeScale.button,
+  },
+  rank: {
+    width: 16,
+  },
+  streakValue: {
+    fontFamily: fonts.primarySemiBold,
+    fontSize: typeScale.button,
+    fontVariant: ['tabular-nums'],
+  },
+  // Marks the signed-in user's own row so they can find themselves
+  // instantly — composes with the leader panel's border accent above
+  // without conflicting (a tint plus a border, not two competing colors).
+  youTint: {
+    backgroundColor: colors.secondarySurface,
+    borderRadius: radius.sm,
+  },
+});
