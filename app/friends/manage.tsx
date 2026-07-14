@@ -1,15 +1,15 @@
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Share, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Share, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActionButton } from '../../components/ActionButton';
 import { BackButton } from '../../components/BackButton';
 import { BodyText } from '../../components/BodyText';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
-import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
 import { TextField } from '../../components/TextField';
@@ -28,9 +28,9 @@ import {
 } from '../../lib/friends';
 
 // Friend codes, requests, and connections — everything that manages who
-// you're friends with, tucked behind the icon button on the leaderboard
-// screen (app/friends/index.tsx) rather than competing with it for
-// attention. Reachable only while signed in.
+// you're friends with, tucked behind the icon button on the Friends tab
+// (app/(tabs)/friends.tsx) rather than competing with the leaderboard
+// for attention. Reachable only while signed in.
 export default function ManageFriendsScreen() {
   const { user } = useAuth();
   const userId = user!.id;
@@ -108,6 +108,8 @@ export default function ManageFriendsScreen() {
     }
   }
 
+  const hasAnyRequests = incoming.length > 0 || outgoing.length > 0;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -173,37 +175,47 @@ export default function ManageFriendsScreen() {
               </View>
             )}
           </View>
-          {incoming.length === 0 ? (
+
+          {!hasAnyRequests ? (
             <BodyText style={styles.note}>No pending requests.</BodyText>
           ) : (
-            incoming.map((request) => (
-              <View key={request.id} style={styles.row}>
-                <BodyText style={styles.rowLabel}>{request.senderDisplayName}</BodyText>
-                <View style={styles.rowActions}>
-                  <ActionButton label="Decline" tone="signal" onPress={() => handleRespond(request.id, 'declined')} />
-                  <ActionButton
-                    label="Accept"
-                    tone="positive"
-                    filled
-                    onPress={() => handleRespond(request.id, 'accepted')}
-                  />
+            <>
+              {incoming.length > 0 && (
+                <View style={styles.requestGroup}>
+                  <Label style={styles.subLabel}>Incoming</Label>
+                  {incoming.map((request) => (
+                    <View key={request.id} style={styles.row}>
+                      <BodyText style={styles.rowLabel}>{request.senderDisplayName}</BodyText>
+                      <View style={styles.rowActions}>
+                        <ActionButton
+                          label="Decline"
+                          tone="signal"
+                          onPress={() => handleRespond(request.id, 'declined')}
+                        />
+                        <ActionButton
+                          label="Accept"
+                          tone="positive"
+                          filled
+                          onPress={() => handleRespond(request.id, 'accepted')}
+                        />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              </View>
-            ))
-          )}
-        </Panel>
+              )}
 
-        <Panel style={styles.panel}>
-          <Label>Sent Requests</Label>
-          {outgoing.length === 0 ? (
-            <BodyText style={styles.note}>No pending sent requests.</BodyText>
-          ) : (
-            outgoing.map((request) => (
-              <View key={request.id} style={styles.row}>
-                <BodyText style={styles.rowLabel}>{request.receiverDisplayName}</BodyText>
-                <Label>Pending</Label>
-              </View>
-            ))
+              {outgoing.length > 0 && (
+                <View style={styles.requestGroup}>
+                  <Label style={styles.subLabel}>Sent</Label>
+                  {outgoing.map((request) => (
+                    <View key={request.id} style={styles.row}>
+                      <BodyText style={styles.rowLabel}>{request.receiverDisplayName}</BodyText>
+                      <Label>Pending</Label>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
           )}
         </Panel>
 
@@ -221,43 +233,6 @@ export default function ManageFriendsScreen() {
         </Panel>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-type ActionButtonTone = 'positive' | 'signal' | 'neutral';
-
-const TONE_COLOR: Record<ActionButtonTone, string> = {
-  positive: colors.positive,
-  signal: colors.signal,
-  neutral: colors.textPrimary,
-};
-
-// A small, obviously-tappable button for row-level actions (Copy, Share,
-// Accept, Decline) — deliberately not `PrimaryButton` (reserved for one
-// full-width main action per screen) and deliberately not plain tappable
-// text. `filled` gives Accept real visual weight against Decline's
-// outline, since the two are genuinely differently-weighted actions.
-function ActionButton({
-  label,
-  tone,
-  onPress,
-  filled = false,
-}: {
-  label: string;
-  tone: ActionButtonTone;
-  onPress: () => void;
-  filled?: boolean;
-}) {
-  const toneColor = TONE_COLOR[tone];
-  const style: StyleProp<ViewStyle> = [
-    styles.actionButton,
-    filled ? { backgroundColor: toneColor } : { borderColor: toneColor },
-  ];
-  const labelColor = filled ? colors.background : toneColor;
-  return (
-    <PressableOpacity style={style} onPress={onPress}>
-      <BodyText style={[styles.actionButtonLabel, { color: labelColor }]}>{label}</BodyText>
-    </PressableOpacity>
   );
 }
 
@@ -331,6 +306,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textPrimary,
   },
+  // Groups Incoming/Sent within the one merged Requests panel — a small
+  // sub-label rather than a whole separate boxed section.
+  requestGroup: {
+    gap: spacing.xs,
+  },
+  subLabel: {
+    marginTop: spacing.xs,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -346,17 +329,5 @@ const styles = StyleSheet.create({
   rowActions: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  actionButton: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  actionButtonLabel: {
-    fontFamily: fonts.primarySemiBold,
-    fontSize: typeScale.label,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
 });

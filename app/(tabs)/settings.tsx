@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActionButton } from '../../components/ActionButton';
 import { BodyText } from '../../components/BodyText';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
@@ -15,7 +16,7 @@ import { TextField } from '../../components/TextField';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
-import { ensureProfile, fetchIncomingRequests, updateDisplayName } from '../../lib/friends';
+import { ensureProfile, updateDisplayName } from '../../lib/friends';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
 
@@ -70,7 +71,6 @@ export default function SettingsScreen() {
   const [nameSaved, setNameSaved] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [profileLoadError, setProfileLoadError] = useState(false);
-  const [pendingRequestCount, setPendingRequestCount] = useState(0);
 
   const userId = user?.id;
   const userEmail = user?.email;
@@ -78,9 +78,7 @@ export default function SettingsScreen() {
   // Seeds the field with the current name (creating a profile with a
   // sensible default if this account somehow doesn't have one yet — e.g.
   // it signed up before display names existed, or before Friends was ever
-  // opened). Never overwrites anything the user is actively typing. Also
-  // refreshes the incoming-request badge, so re-running on every focus
-  // (not just mount) keeps it accurate after visiting Friends.
+  // opened). Never overwrites anything the user is actively typing.
   const refreshProfile = useCallback(() => {
     if (!userId) return;
     const fallbackName = userEmail?.split('@')[0] ?? 'Player';
@@ -91,9 +89,6 @@ export default function SettingsScreen() {
         setNameLockedUntil(profile.displayNameLockedUntil);
       })
       .catch(() => setProfileLoadError(true));
-    fetchIncomingRequests(userId)
-      .then((requests) => setPendingRequestCount(requests.length))
-      .catch(() => {});
   }, [userId, userEmail]);
 
   useFocusEffect(refreshProfile);
@@ -229,25 +224,19 @@ export default function SettingsScreen() {
                   maxLength={MAX_DISPLAY_NAME_LENGTH}
                   autoComplete="name"
                   textContentType="name"
+                  accessory={
+                    <ActionButton
+                      label={isSavingName ? '…' : nameSaved ? 'Saved' : 'Save'}
+                      tone="neutral"
+                      onPress={handleSaveName}
+                    />
+                  }
                 />
                 {nameError && <BodyText style={styles.error}>{nameError}</BodyText>}
-                <PrimaryButton
-                  label={isSavingName ? 'Saving…' : nameSaved ? 'Saved' : 'Save Name'}
-                  onPress={handleSaveName}
-                  style={isSavingName ? styles.buttonDisabled : undefined}
-                />
 
-                <View style={styles.row}>
-                  <PressableOpacity onPress={() => router.push('/friends')}>
-                    <View style={styles.rowLabelGroup}>
-                      <BodyText style={styles.link}>Friends</BodyText>
-                      {pendingRequestCount > 0 && <View style={styles.badgeDot} />}
-                    </View>
-                  </PressableOpacity>
-                  <PressableOpacity onPress={() => signOut()}>
-                    <BodyText style={styles.link}>Sign Out</BodyText>
-                  </PressableOpacity>
-                </View>
+                <PressableOpacity onPress={() => signOut()}>
+                  <BodyText style={styles.link}>Sign Out</BodyText>
+                </PressableOpacity>
               </>
             ) : (
               <>
@@ -381,17 +370,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  // Same small red dot language as `liveDot` above — reused here as a
-  // notification badge next to "Friends" when a request is waiting.
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: radius.sm,
-    backgroundColor: colors.signal,
   },
   // Layout only — the surface fill/border/radius come from Panel.
   howItWorksPanel: {

@@ -5,7 +5,6 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BackButton } from '../../components/BackButton';
 import { BodyText } from '../../components/BodyText';
 import { FlameIcon } from '../../components/FlameIcon';
 import { HeroText } from '../../components/HeroText';
@@ -22,12 +21,13 @@ import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../
 // management (code, requests, add-a-friend) lives behind the icon button
 // in the header, on app/friends/manage.tsx, mirroring how Instagram/
 // Strava tuck people-management behind the board/feed you actually look
-// at day to day. Reachable only from Settings' Account panel while
-// signed in.
-export default function LeaderboardScreen() {
+// at day to day. Unlike the rest of the social feature, this is a bottom
+// tab — always reachable, so it handles being signed out itself rather
+// than assuming Settings already gated entry.
+export default function FriendsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const userId = user!.id; // this screen is only ever reachable while signed in
+  const { user, isLoaded: isAuthLoaded } = useAuth();
+  const userId = user?.id ?? null;
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [hasFriends, setHasFriends] = useState(false);
@@ -35,6 +35,7 @@ export default function LeaderboardScreen() {
   const [loadError, setLoadError] = useState(false);
 
   const refresh = useCallback(() => {
+    if (!userId) return;
     setLoadError(false);
 
     fetchIncomingRequests(userId)
@@ -53,7 +54,7 @@ export default function LeaderboardScreen() {
       .catch(() => setLoadError(true));
   }, [userId]);
 
-  // Refetches every time this screen gains focus — e.g. coming back from
+  // Refetches every time this tab gains focus — e.g. coming back from
   // Manage after accepting a request, or from playing today's round.
   useFocusEffect(refresh);
 
@@ -62,42 +63,61 @@ export default function LeaderboardScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <BackButton />
+        <View style={styles.headerSpacer} />
         <View style={styles.headerText}>
           <HeroText style={styles.title}>Friends</HeroText>
         </View>
-        <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
-          <Ionicons name="person-add-outline" size={20} color={colors.textMuted} />
-          {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
-        </PressableOpacity>
+        {userId ? (
+          <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
+            <Ionicons name="person-add-outline" size={20} color={colors.textMuted} />
+            {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
+          </PressableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {loadError && (
+      {!isAuthLoaded ? null : !userId ? (
+        <View style={styles.signedOutBody}>
           <Panel style={styles.panel}>
-            <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
-            <PrimaryButton label="Try Again" onPress={refresh} />
+            <Label>Friends</Label>
+            <BodyText style={styles.note}>
+              Sign in to see your friends leaderboard — the game itself never requires it.
+            </BodyText>
+            <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
+            <PressableOpacity onPress={() => router.push('/sign-in')}>
+              <BodyText style={styles.link}>Already have an account? Sign In</BodyText>
+            </PressableOpacity>
           </Panel>
-        )}
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {loadError && (
+            <Panel style={styles.panel}>
+              <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
+              <PrimaryButton label="Try Again" onPress={refresh} />
+            </Panel>
+          )}
 
-        {leader && <LeaderRow entry={leader} isYou={leader.userId === userId} />}
+          {leader && <LeaderRow entry={leader} isYou={leader.userId === userId} />}
 
-        {rest.length > 0 && (
-          <Panel style={styles.panel}>
-            {rest.map((entry, index) => (
-              <RankRow key={entry.userId} entry={entry} rank={index + 2} isYou={entry.userId === userId} />
-            ))}
-          </Panel>
-        )}
+          {rest.length > 0 && (
+            <Panel style={styles.panel}>
+              {rest.map((entry, index) => (
+                <RankRow key={entry.userId} entry={entry} rank={index + 2} isYou={entry.userId === userId} />
+              ))}
+            </Panel>
+          )}
 
-        {!hasFriends && (
-          <Panel style={styles.panel}>
-            <Label>No Friends Yet</Label>
-            <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
-            <PrimaryButton label="Manage Friends" onPress={() => router.push('/friends/manage')} />
-          </Panel>
-        )}
-      </ScrollView>
+          {!hasFriends && (
+            <Panel style={styles.panel}>
+              <Label>No Friends Yet</Label>
+              <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
+              <PrimaryButton label="Manage Friends" onPress={() => router.push('/friends/manage')} />
+            </Panel>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -170,6 +190,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typeScale.value,
   },
+  headerSpacer: {
+    width: 32,
+  },
   manageButton: {
     width: 32,
     height: 32,
@@ -184,6 +207,15 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: radius.sm,
     backgroundColor: colors.signal,
+  },
+  signedOutBody: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  link: {
+    fontFamily: fonts.primary,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   scrollContent: {
     paddingBottom: spacing.xxl,
