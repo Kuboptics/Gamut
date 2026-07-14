@@ -19,20 +19,31 @@ export type DayRecord = {
   scores: number[];
   // Parallel to `scores` — same length, same index order.
   photoUris: string[];
+  // Epoch ms this record was last written locally. Used only for cloud
+  // sync's "newest wins" merge (see context/SyncContext.tsx) — nothing
+  // else in the app reads it.
+  updatedAt: number;
 };
 
 // Keyed by "YYYY-MM-DD" (local time) — the same date-key shape used by
 // RoundContext and StreakContext.
-type StoredHistory = Record<string, DayRecord>;
+export type StoredHistory = Record<string, DayRecord>;
 
 type HistoryContextValue = {
   history: StoredHistory;
   isLoaded: boolean;
-  // Records (or overwrites) the full record for a given day. Safe to
-  // call more than once for the same day — it's just the latest value
-  // that sticks, so re-showing a result screen (or retrying a round)
-  // never corrupts anything.
-  recordDay: (dateKey: string, record: DayRecord) => void;
+  // Records (or overwrites) the full record for a given day, stamping it
+  // with the current time, and returns the stored record so a caller
+  // (see app/summary.tsx) can hand the exact same object to cloud sync.
+  // Safe to call more than once for the same day — it's just the latest
+  // value that sticks, so re-showing a result screen (or retrying a
+  // round) never corrupts anything.
+  recordDay: (dateKey: string, record: Omit<DayRecord, 'updatedAt'>) => DayRecord;
+  // Folds cloud-sourced records into local history: a day is only
+  // overwritten if it's missing locally or the incoming copy is newer,
+  // so a fresher local record (e.g. one not yet uploaded) never loses to
+  // a stale cloud read. See context/SyncContext.tsx.
+  mergeRecords: (incoming: StoredHistory) => void;
 };
 
 const HistoryContext = createContext<HistoryContextValue | null>(null);
@@ -53,7 +64,17 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (!cancelled && raw) {
-          setHistory(JSON.parse(raw));
+          const stored: StoredHistory = JSON.parse(raw);
+          // Records saved before cloud sync existed have no `updatedAt`.
+          // Backfilling 0 (not "now") marks them as old rather than
+          // freshly-changed, so a same-day cloud copy from elsewhere
+          // correctly wins — while a day that exists only locally still
+          // uploads regardless, since pickRecordsNewerOrEqual treats
+          // "missing from the cloud" as reason enough on its own.
+          for (const record of Object.values(stored)) {
+            record.updatedAt ??= 0;
+          }
+          setHistory(stored);
         }
       } catch {
         // Unreadable/corrupt storage just starts with an empty history.
@@ -79,17 +100,26 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     () => ({
       history,
       isLoaded,
-      recordDay: (dateKey: string, record: DayRecord) => {
+      recordDay: (dateKey: string, record: Omit<DayRecord, 'updatedAt'>) => {
+        const stamped: DayRecord = { ...record, updatedAt: Date.now() };
+        setHistory((current) => ({ ...current, [dateKey]: stamped }));
+        return stamped;
+      },
+      mergeRecords: (incoming: StoredHistory) => {
         setHistory((current) => {
-          // Bail out with the same object if nothing's actually
-          // changing. Returning a new object every call — even for an
-          // unchanged value — would change `history`'s identity, which
-          // would change this function's identity (see the `value`
-          // useMemo below), which could re-trigger an effect that
-          // calls recordDay again. Skipping the no-op update keeps
-          // everything stable.
-          if (JSON.stringify(current[dateKey]) === JSON.stringify(record)) return current;
-          return { ...current, [dateKey]: record };
+          let next = current;
+          for (const [dateKey, record] of Object.entries(incoming)) {
+            const existing = next[dateKey];
+            if (!existing || record.updatedAt > existing.updatedAt) {
+              // Only allocate a new object the first time this call
+              // actually changes something, so an incoming batch with
+              // nothing newer than what's local doesn't churn `history`'s
+              // identity for no reason.
+              if (next === current) next = { ...current };
+              next[dateKey] = record;
+            }
+          }
+          return next;
         });
       },
     }),

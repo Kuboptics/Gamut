@@ -13,8 +13,10 @@ import { TextField } from '../components/TextField';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { describeAuthError, isValidEmail } from '../lib/authErrors';
+import { ensureProfile } from '../lib/friends';
 
 const MIN_PASSWORD_LENGTH = 6;
+const MAX_DISPLAY_NAME_LENGTH = 40;
 
 // Creates a Supabase account. Purely optional groundwork for later
 // friends/social features — the game itself never requires this.
@@ -24,6 +26,7 @@ export default function SignUpScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // True once sign-up succeeded but Supabase didn't hand back a session —
@@ -44,24 +47,39 @@ export default function SignUpScreen() {
 
     setError(null);
     setIsSubmitting(true);
-    const { error: signUpError, needsEmailConfirmation: pendingConfirmation } = await signUp(
-      email.trim(),
-      password
-    );
-    setIsSubmitting(false);
+    const trimmedEmail = email.trim();
+    const {
+      error: signUpError,
+      needsEmailConfirmation: pendingConfirmation,
+      userId,
+    } = await signUp(trimmedEmail, password);
 
     if (signUpError) {
+      setIsSubmitting(false);
       setError(describeAuthError(signUpError));
       return;
     }
 
     if (pendingConfirmation) {
+      setIsSubmitting(false);
       setNeedsEmailConfirmation(true);
       return;
     }
 
     // A session came back immediately (email confirmation is off), so the
-    // person is already signed in.
+    // person is already signed in and there's a real request context to
+    // write a profile with. If confirmation had been required instead,
+    // there'd be no session yet to do this — Settings/Friends fall back to
+    // the same default the next time they're opened, signed in.
+    if (userId) {
+      const fallbackName = trimmedEmail.split('@')[0];
+      await ensureProfile(userId, displayName.trim() || fallbackName).catch(() => {
+        // Non-fatal: the account still exists; a name can be set later in
+        // Settings, or the next Friends-screen visit will pick a default.
+      });
+    }
+
+    setIsSubmitting(false);
     router.back();
   }
 
@@ -123,6 +141,15 @@ export default function SignUpScreen() {
               autoCapitalize="none"
               autoComplete="password-new"
               textContentType="newPassword"
+            />
+            <TextField
+              label="Display Name (optional)"
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Player"
+              maxLength={MAX_DISPLAY_NAME_LENGTH}
+              autoComplete="name"
+              textContentType="name"
             />
 
             {error && <BodyText style={styles.error}>{error}</BodyText>}

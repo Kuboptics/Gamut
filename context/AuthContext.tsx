@@ -13,10 +13,13 @@ type AuthContextValue = {
   // `needsEmailConfirmation` is true when sign-up succeeded but Supabase
   // didn't hand back a session — meaning the project's "Confirm email"
   // setting is on and the account needs the emailed link clicked first.
+  // `userId` is set whenever Supabase created the account, regardless of
+  // confirmation status, so a caller can write a profile row immediately
+  // if (and only if) a session also came back.
   signUp: (
     email: string,
     password: string
-  ) => Promise<{ error: AuthError | null; needsEmailConfirmation: boolean }>;
+  ) => Promise<{ error: AuthError | null; needsEmailConfirmation: boolean; userId: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
 };
@@ -54,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoaded,
       signUp: async (email: string, password: string) => {
         const { data, error } = await supabase.auth.signUp({ email, password });
-        return { error, needsEmailConfirmation: !error && !data.session };
+        return { error, needsEmailConfirmation: !error && !data.session, userId: data.user?.id ?? null };
       },
       signIn: async (email: string, password: string) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });

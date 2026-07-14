@@ -1,6 +1,6 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,9 +10,13 @@ import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
+import { TextField } from '../../components/TextField';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
+import { ensureProfile, updateDisplayName } from '../../lib/friends';
+
+const MAX_DISPLAY_NAME_LENGTH = 40;
 
 // Formats an hour/minute pair as "6:30 PM" — same 12-hour, no-leading-
 // zero style a clock face would use.
@@ -52,6 +56,41 @@ export default function SettingsScreen() {
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
   const router = useRouter();
   const { user, isLoaded: isAuthLoaded, signOut } = useAuth();
+
+  const [displayNameInput, setDisplayNameInput] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [nameSaved, setNameSaved] = useState(false);
+
+  // Seeds the field with the current name (creating a profile with a
+  // sensible default if this account somehow doesn't have one yet — e.g.
+  // it signed up before display names existed, or before Friends was ever
+  // opened). Never overwrites anything the user is actively typing.
+  const userId = user?.id;
+  const userEmail = user?.email;
+  useEffect(() => {
+    if (!userId) return;
+    const fallbackName = userEmail?.split('@')[0] ?? 'Player';
+    ensureProfile(userId, fallbackName)
+      .then((profile) => setDisplayNameInput(profile.displayName))
+      .catch(() => {});
+  }, [userId, userEmail]);
+
+  async function handleSaveName() {
+    if (!user || isSavingName) return;
+    const trimmed = displayNameInput.trim();
+    if (!trimmed) return;
+    setIsSavingName(true);
+    setNameSaved(false);
+    try {
+      await updateDisplayName(user.id, trimmed);
+      setNameSaved(true);
+    } catch {
+      // Non-fatal: the name just didn't save this time; the field still
+      // shows what was typed, so trying Save again works.
+    } finally {
+      setIsSavingName(false);
+    }
+  }
 
   // The picker component wants a Date, but only its hour/minute matter
   // — the rest of the date is thrown away as soon as it changes.
@@ -136,6 +175,26 @@ export default function SettingsScreen() {
             {user ? (
               <>
                 <BodyText style={styles.rowLabel}>{user.email}</BodyText>
+                <TextField
+                  label="Display Name"
+                  value={displayNameInput}
+                  onChangeText={(text) => {
+                    setDisplayNameInput(text);
+                    setNameSaved(false);
+                  }}
+                  placeholder="Player"
+                  maxLength={MAX_DISPLAY_NAME_LENGTH}
+                  autoComplete="name"
+                  textContentType="name"
+                />
+                <PressableOpacity onPress={handleSaveName}>
+                  <BodyText style={styles.link}>
+                    {isSavingName ? 'Saving…' : nameSaved ? 'Saved' : 'Save Name'}
+                  </BodyText>
+                </PressableOpacity>
+                <PressableOpacity onPress={() => router.push('/friends')}>
+                  <BodyText style={styles.link}>Friends</BodyText>
+                </PressableOpacity>
                 <PressableOpacity onPress={() => signOut()}>
                   <BodyText style={styles.link}>Sign Out</BodyText>
                 </PressableOpacity>

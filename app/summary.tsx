@@ -16,6 +16,7 @@ import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useHistory } from '../context/HistoryContext';
 import { PASS_THRESHOLD, useRound } from '../context/RoundContext';
 import { useStreak } from '../context/StreakContext';
+import { useSync } from '../context/SyncContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { getDailyTarget } from '../lib/dailyColor';
 
@@ -45,6 +46,7 @@ export default function SummaryScreen() {
   const { scores, photoUris, resetRound } = useRound();
   const { recordPass } = useStreak();
   const { recordDay } = useHistory();
+  const { pushRecord } = useSync();
   const target = getDailyTarget();
 
   const average = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
@@ -62,7 +64,8 @@ export default function SummaryScreen() {
     if (hasRecordedRef.current) return;
     hasRecordedRef.current = true;
 
-    recordDay(todayKey(), {
+    const dateKey = todayKey();
+    const stored = recordDay(dateKey, {
       outcome: passed ? 'passed' : 'failed',
       hex: target.hex,
       hue: target.hue,
@@ -71,8 +74,20 @@ export default function SummaryScreen() {
       scores,
       photoUris,
     });
+    pushRecord(dateKey, stored);
     if (passed) recordPass();
-  }, [passed, recordPass, recordDay, target.hex, target.hue, target.saturation, target.lightness, scores, photoUris]);
+  }, [
+    passed,
+    recordPass,
+    recordDay,
+    pushRecord,
+    target.hex,
+    target.hue,
+    target.saturation,
+    target.lightness,
+    scores,
+    photoUris,
+  ]);
 
   // The average counts up from 0 rather than snapping straight to its
   // final value — a plain requestAnimationFrame loop driving React

@@ -13,6 +13,7 @@ import { HistoryProvider } from '../context/HistoryContext';
 import { ReminderProvider } from '../context/ReminderContext';
 import { RoundProvider } from '../context/RoundContext';
 import { StreakProvider } from '../context/StreakContext';
+import { SyncProvider } from '../context/SyncContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 // Keep the splash screen up until both font families have loaded, so we
@@ -44,15 +45,17 @@ export default function RootLayout() {
         <HistoryProvider>
           <ReminderProvider>
             <AuthProvider>
-              <StatusBar style="light" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.background },
-                  animation: reducedMotion ? 'none' : 'fade',
-                  animationDuration: motionDuration.base,
-                }}
-              />
+              <SyncProvider>
+                <StatusBar style="light" />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.background },
+                    animation: reducedMotion ? 'none' : 'fade',
+                    animationDuration: motionDuration.base,
+                  }}
+                />
+              </SyncProvider>
             </AuthProvider>
           </ReminderProvider>
         </HistoryProvider>
