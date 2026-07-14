@@ -2,14 +2,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { scopedStorageKey } from '../lib/accountStorage';
+import { useAuth } from './AuthContext';
+
 // A round is 3 photos against today's color; the round passes if the
 // average of the 3 scores is at least this percentage.
 export const PHOTOS_PER_ROUND = 3;
 export const PASS_THRESHOLD = 60;
 
 // Where the in-progress round is saved on device, so it survives the
-// app being fully closed (not just backgrounded).
-const STORAGE_KEY = 'colorhunt.round';
+// app being fully closed (not just backgrounded). Suffixed per signed-in
+// account (see lib/accountStorage.ts) so an in-progress round from one
+// identity never bleeds into another sharing the same phone — otherwise
+// finishing it would record (and upload) a mix of two accounts' photos
+// under whoever happens to be signed in when the 3rd photo lands.
+const BASE_STORAGE_KEY = 'colorhunt.round';
 
 // Camera/library photo URIs are temporary — banked photos get copied
 // here (the permanent document directory, not the cache) so thumbnails
@@ -93,18 +100,28 @@ function deletePhotoFiles(uris: string[]): void {
 // app/_layout.tsx) so it also survives moving between the Capture and
 // Preview screens.
 export function RoundProvider({ children }: { children: ReactNode }) {
+  const { user, isLoaded: isAuthLoaded } = useAuth();
+  const storageKey = scopedStorageKey(BASE_STORAGE_KEY, user?.id ?? null);
+
   const [scores, setScores] = useState<number[]>([]);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [dateKey, setDateKey] = useState(todayKey);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load any in-progress round from device storage once, on launch.
+  // Loads any in-progress round from device storage, re-running whenever
+  // the signed-in identity changes (see HistoryContext for the same
+  // pattern) so switching accounts always starts from a clean slate
+  // rather than resuming whatever the previous identity was mid-round on.
   useEffect(() => {
+    if (!isAuthLoaded) return;
     let cancelled = false;
+    setIsLoaded(false);
+    setScores([]);
+    setPhotoUris([]);
 
     async function load() {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const raw = await AsyncStorage.getItem(storageKey);
         if (!cancelled && raw) {
           const stored: StoredRound = JSON.parse(raw);
           // Only resume a round that belongs to today's color — a
@@ -125,7 +142,7 @@ export function RoundProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storageKey, isAuthLoaded]);
 
   // Persist whenever scores/photos change, but only after the initial
   // load has happened — otherwise we'd briefly overwrite real saved
@@ -133,10 +150,10 @@ export function RoundProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
     const stored: StoredRound = { dateKey, scores, photoUris };
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored)).catch(() => {
+    AsyncStorage.setItem(storageKey, JSON.stringify(stored)).catch(() => {
       // Non-fatal: progress just won't survive an app restart this time.
     });
-  }, [scores, photoUris, dateKey, isLoaded]);
+  }, [scores, photoUris, dateKey, isLoaded, storageKey]);
 
   function resetRound(options?: { keepPhotos?: boolean }) {
     if (!options?.keepPhotos) {

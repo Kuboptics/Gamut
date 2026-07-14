@@ -1,9 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { scopedStorageKey } from '../lib/accountStorage';
+import { useAuth } from './AuthContext';
+
 // Where the day-by-day history is saved on device, so it survives the
-// app closing.
-const STORAGE_KEY = 'colorhunt.history';
+// app closing. Suffixed per signed-in account (see lib/accountStorage.ts)
+// so one phone switching between accounts — or between an account and
+// anonymous play — never bleeds one identity's history into another's.
+const BASE_STORAGE_KEY = 'colorhunt.history';
 
 export type DayOutcome = 'passed' | 'failed';
 
@@ -54,15 +59,27 @@ const HistoryContext = createContext<HistoryContextValue | null>(null);
 // about today (see context/StreakContext.tsx for the same "honest,
 // local-only stepping stone" reasoning).
 export function HistoryProvider({ children }: { children: ReactNode }) {
+  const { user, isLoaded: isAuthLoaded } = useAuth();
+  const storageKey = scopedStorageKey(BASE_STORAGE_KEY, user?.id ?? null);
+
   const [history, setHistory] = useState<StoredHistory>({});
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Re-runs every time `storageKey` changes — i.e. every time the signed-
+  // in identity changes — resetting to empty *before* loading the new
+  // bucket, so the previous identity's history is never visible even for
+  // a frame. Waits for auth to finish restoring its own session first
+  // (isAuthLoaded) so this doesn't briefly load the anonymous bucket only
+  // to immediately swap to the real one once a saved session comes back.
   useEffect(() => {
+    if (!isAuthLoaded) return;
     let cancelled = false;
+    setIsLoaded(false);
+    setHistory({});
 
     async function load() {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const raw = await AsyncStorage.getItem(storageKey);
         if (!cancelled && raw) {
           const stored: StoredHistory = JSON.parse(raw);
           // Records saved before cloud sync existed have no `updatedAt`.
@@ -87,14 +104,14 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storageKey, isAuthLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(history)).catch(() => {
+    AsyncStorage.setItem(storageKey, JSON.stringify(history)).catch(() => {
       // Non-fatal: history just won't survive an app restart this time.
     });
-  }, [history, isLoaded]);
+  }, [history, isLoaded, storageKey]);
 
   const value = useMemo<HistoryContextValue>(
     () => ({

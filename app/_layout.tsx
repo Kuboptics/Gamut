@@ -40,11 +40,11 @@ export default function RootLayout() {
   }
 
   return (
-    <RoundProvider>
-      <StreakProvider>
-        <HistoryProvider>
-          <ReminderProvider>
-            <AuthProvider>
+    <AuthProvider>
+      <RoundProvider>
+        <StreakProvider>
+          <HistoryProvider>
+            <ReminderProvider>
               <SyncProvider>
                 <StatusBar style="light" />
                 <Stack
@@ -56,10 +56,10 @@ export default function RootLayout() {
                   }}
                 />
               </SyncProvider>
-            </AuthProvider>
-          </ReminderProvider>
-        </HistoryProvider>
-      </StreakProvider>
-    </RoundProvider>
+            </ReminderProvider>
+          </HistoryProvider>
+        </StreakProvider>
+      </RoundProvider>
+    </AuthProvider>
   );
 }

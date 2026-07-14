@@ -1,8 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { scopedStorageKey } from '../lib/accountStorage';
+import { useAuth } from './AuthContext';
+
 // Where the streak is saved on device, so it survives the app closing.
-const STORAGE_KEY = 'colorhunt.streak';
+// Suffixed per signed-in account (see lib/accountStorage.ts) so switching
+// accounts on one phone — or between an account and anonymous play —
+// never bleeds one identity's streak into another's.
+const BASE_STORAGE_KEY = 'colorhunt.streak';
 
 type StoredStreak = {
   currentStreak: number;
@@ -40,16 +46,26 @@ function yesterdayKey(): string {
 // server) — a real synced streak is a Phase 3 feature once accounts
 // exist; this is an honest, smaller stepping stone rather than fake data.
 export function StreakProvider({ children }: { children: ReactNode }) {
+  const { user, isLoaded: isAuthLoaded } = useAuth();
+  const storageKey = scopedStorageKey(BASE_STORAGE_KEY, user?.id ?? null);
+
   const [currentStreak, setCurrentStreak] = useState(0);
   const [lastPassedDateKey, setLastPassedDateKey] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Re-runs whenever the signed-in identity changes, resetting to zero
+  // before loading the new bucket — see HistoryContext for the same
+  // pattern and why it waits for isAuthLoaded first.
   useEffect(() => {
+    if (!isAuthLoaded) return;
     let cancelled = false;
+    setIsLoaded(false);
+    setCurrentStreak(0);
+    setLastPassedDateKey(null);
 
     async function load() {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const raw = await AsyncStorage.getItem(storageKey);
         if (!cancelled && raw) {
           const stored: StoredStreak = JSON.parse(raw);
           setCurrentStreak(stored.currentStreak);
@@ -66,15 +82,15 @@ export function StreakProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storageKey, isAuthLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
     const stored: StoredStreak = { currentStreak, lastPassedDateKey };
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored)).catch(() => {
+    AsyncStorage.setItem(storageKey, JSON.stringify(stored)).catch(() => {
       // Non-fatal: the streak just won't survive an app restart this time.
     });
-  }, [currentStreak, lastPassedDateKey, isLoaded]);
+  }, [currentStreak, lastPassedDateKey, isLoaded, storageKey]);
 
   const value = useMemo<StreakContextValue>(
     () => ({
