@@ -3,19 +3,55 @@
 // score) — those are the only place hues are allowed to appear.
 
 export const colors = {
-  background: '#000000',
-  surface: '#0E0E0E',
-  border: '#1C1C1C',
-  secondarySurface: '#2A2A2A',
+  // A softened near-black rather than pure #000000 — a neutral (no
+  // color/blue cast) charcoal ramp, less harsh against white/surface
+  // elements while still reading as "black" at a glance.
+  background: '#121212',
+  surface: '#1B1B1B',
+  border: '#262626',
+  secondarySurface: '#303030',
   textPrimary: '#FFFFFF',
   textMuted: '#8A8A8A',
   // Used extremely sparingly, only for live/alert states like the countdown dot.
   signal: '#D71921',
+  // A deliberate, narrow exception to the single-signal-color rule
+  // above: small per-photo/per-round PASS indicators (currently the
+  // Today completed state and the day-detail view), paired with
+  // `signal` red for FAIL.
+  positive: '#3FA34D',
+  // Another narrow, deliberate exception, same footing as `positive`:
+  // the Progress tab's flame icon. A warm red-orange in the same family
+  // as `signal` (not a random hue) so the one always-colored tab bar
+  // icon still reads as on-brand.
+  flame: '#E8481A',
 };
 
 export const fonts = {
-  // The dot-matrix display font for numerals and big headers.
-  display: 'DotGothic16_400Regular',
+  // Work Sans — the primary grotesque for nearly everything: labels,
+  // body copy, buttons, list rows, general UI. The app's default type.
+  primary: 'WorkSans_400Regular',
+  primarySemiBold: 'WorkSans_600SemiBold',
+  primaryBold: 'WorkSans_700Bold',
+  // Fugaz One — ONLY for large "hero" display moments: the big score/
+  // percentage, the streak number, and screen titles (the PASS/FAIL
+  // verdict word counts too — same hero tier as the score beside it).
+  // Never body copy or small labels.
+  hero: 'FugazOne_400Regular',
+};
+
+// The two data readouts — the target hex code and the daily drop
+// countdown — don't get a third font. They're `primarySemiBold` (Work
+// Sans) with tabular figures, via the ReadoutText component, so digits
+// stay precise and legible instead of decorative.
+
+// A small, consistent radius scale for "instrument chrome" — panels and
+// buttons. Photographic content (swatches, photo thumbnails) stays
+// hard-edged (no radius) per CLAUDE.md's "hard-edged, minimal radius"
+// rule; this is the deliberate, minimal exception for the chrome around
+// it, so control surfaces read as tactile rather than sharp-cut.
+export const radius = {
+  sm: 4,
+  md: 10,
 };
 
 // A consistent spacing scale. Every gap, padding, and margin in the app

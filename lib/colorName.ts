@@ -2,7 +2,10 @@
 // plain-English name like "Vivid Orange" or "Dusty Blue". This is not a
 // precise color-naming system, just flavor text for the specimen slide.
 
-const HUE_NAMES = [
+// Exported so other features keyed to the same 12 hue families (see
+// lib/colorFacts.ts) can bucket a hue the exact same way, instead of
+// each redefining its own list of family names.
+export const HUE_NAMES = [
   'Red',
   'Orange',
   'Yellow',
@@ -15,9 +18,11 @@ const HUE_NAMES = [
   'Violet',
   'Magenta',
   'Rose',
-];
+] as const;
 
-function hueName(hue: number): string {
+export type HueFamily = (typeof HUE_NAMES)[number];
+
+export function hueName(hue: number): HueFamily {
   const normalizedHue = ((hue % 360) + 360) % 360; // keep it in [0, 360)
   const index = Math.floor(normalizedHue / 30) % HUE_NAMES.length;
   return HUE_NAMES[index];

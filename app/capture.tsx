@@ -5,10 +5,10 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '../components/BackButton';
-import { DotText } from '../components/DotText';
+import { BodyText } from '../components/BodyText';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, spacing, typeScale } from '../constants/theme';
+import { colors, fonts, spacing, typeScale } from '../constants/theme';
 
 type ChoiceOptionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -21,7 +21,7 @@ function ChoiceOption({ icon, label, onPress }: ChoiceOptionProps) {
   return (
     <PressableOpacity style={styles.option} onPress={onPress}>
       <Ionicons name={icon} size={40} color={colors.textPrimary} />
-      <DotText style={styles.optionLabel}>{label}</DotText>
+      <BodyText style={styles.optionLabel}>{label}</BodyText>
     </PressableOpacity>
   );
 }
@@ -101,6 +101,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   optionLabel: {
+    fontFamily: fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
 });

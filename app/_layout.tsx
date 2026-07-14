@@ -1,4 +1,6 @@
-import { DotGothic16_400Regular, useFonts } from '@expo-google-fonts/dotgothic16';
+import { FugazOne_400Regular } from '@expo-google-fonts/fugaz-one';
+import { WorkSans_400Regular, WorkSans_600SemiBold, WorkSans_700Bold } from '@expo-google-fonts/work-sans';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -6,16 +8,23 @@ import { useEffect } from 'react';
 
 import { motionDuration } from '../constants/motion';
 import { colors } from '../constants/theme';
+import { HistoryProvider } from '../context/HistoryContext';
+import { ReminderProvider } from '../context/ReminderContext';
 import { RoundProvider } from '../context/RoundContext';
 import { StreakProvider } from '../context/StreakContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
-// Keep the splash screen up until the dot-matrix font has loaded, so we
-// never flash default system text before switching to the real font.
+// Keep the splash screen up until both font families have loaded, so we
+// never flash default system text before switching to the real ones.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ DotGothic16_400Regular });
+  const [fontsLoaded] = useFonts({
+    FugazOne_400Regular,
+    WorkSans_400Regular,
+    WorkSans_600SemiBold,
+    WorkSans_700Bold,
+  });
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -31,15 +40,19 @@ export default function RootLayout() {
   return (
     <RoundProvider>
       <StreakProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-            animation: reducedMotion ? 'none' : 'fade',
-            animationDuration: motionDuration.base,
-          }}
-        />
+        <HistoryProvider>
+          <ReminderProvider>
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+                animation: reducedMotion ? 'none' : 'fade',
+                animationDuration: motionDuration.base,
+              }}
+            />
+          </ReminderProvider>
+        </HistoryProvider>
       </StreakProvider>
     </RoundProvider>
   );

@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 
+import { FlameIcon } from '../../components/FlameIcon';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { motionDuration } from '../../constants/motion';
-import { colors } from '../../constants/theme';
+import { colors, fonts } from '../../constants/theme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 // Gives every tab item the same press feedback as the rest of the app,
@@ -54,6 +55,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.textPrimary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
+          fontFamily: fonts.primary,
           textTransform: 'uppercase',
           letterSpacing: 1,
           fontSize: 10,
@@ -68,17 +70,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="calendar"
+        name="progress"
         options={{
-          title: 'Calendar',
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+          title: 'Progress',
+          tabBarIcon: ({ size }) => <FlameIcon size={size} />,
         }}
       />
       <Tabs.Screen
-        name="streak"
+        name="settings"
         options={{
-          title: 'Streak',
-          tabBarIcon: ({ color, size }) => <Ionicons name="flame-outline" size={size} color={color} />,
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

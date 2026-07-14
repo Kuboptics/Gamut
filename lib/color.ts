@@ -41,6 +41,27 @@ export function rgbToHex({ r, g, b }: RGB): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
 }
 
+// The inverse of rgbToHex: turns "#3A7FD5" back into {r, g, b}.
+export function hexToRgb(hex: string): RGB {
+  const normalized = hex.replace('#', '');
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+// Picks whichever of black or white reads clearly on top of the given
+// fill color, using the standard "luma" formula for perceived
+// brightness (green looks brighter to the eye than red or blue at the
+// same intensity, so it's weighted more heavily). 128 is the usual
+// midpoint threshold for this kind of black-or-white text decision.
+export function contrastTextColor(hex: string): string {
+  const { r, g, b } = hexToRgb(hex);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness >= 128 ? '#000000' : '#FFFFFF';
+}
+
 // sRGB (the color space photos and screens use) applies a gamma curve to
 // each channel. Lab math needs "linear" light values, so this undoes it.
 function srgbChannelToLinear(channel: number): number {

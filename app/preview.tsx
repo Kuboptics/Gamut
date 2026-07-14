@@ -5,12 +5,12 @@ import { Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '../components/BackButton';
+import { BodyText } from '../components/BodyText';
 import { Divider } from '../components/Divider';
-import { DotText } from '../components/DotText';
 import { Label } from '../components/Label';
 import { PixelSampler } from '../components/PixelSampler';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, spacing } from '../constants/theme';
+import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { findBestPatch, type BestPatch } from '../lib/bestPatch';
 import type { RGB } from '../lib/color';
@@ -97,21 +97,21 @@ export default function PreviewScreen() {
       </View>
 
       <View style={styles.tipRow}>
-        <DotText style={styles.tip}>{framingTip}</DotText>
+        <Label style={styles.tip}>{framingTip}</Label>
       </View>
 
       <Divider />
 
       <View style={styles.actions}>
         <PressableOpacity style={styles.retakeButton} onPress={handleRetake}>
-          <DotText>Retake</DotText>
+          <BodyText style={styles.actionLabel}>Retake</BodyText>
         </PressableOpacity>
         <PressableOpacity
           style={[styles.keepButton, !bestPatch && styles.keepButtonDisabled]}
           onPress={handleKeep}
           disabled={!bestPatch}
         >
-          <DotText>Keep</DotText>
+          <BodyText style={styles.actionLabel}>Keep</BodyText>
         </PressableOpacity>
       </View>
 
@@ -153,7 +153,6 @@ const styles = StyleSheet.create({
   },
   tip: {
     fontSize: 13,
-    color: colors.textMuted,
   },
   actions: {
     flexDirection: 'row',
@@ -177,5 +176,12 @@ const styles = StyleSheet.create({
   },
   keepButtonDisabled: {
     borderColor: colors.textMuted,
+  },
+  // Matches PrimaryButton's own label treatment, so Retake/Keep read as
+  // the same button-label tier even though these two are outlined
+  // rather than solid.
+  actionLabel: {
+    fontFamily: fonts.primarySemiBold,
+    fontSize: typeScale.button,
   },
 });

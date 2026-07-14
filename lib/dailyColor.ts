@@ -20,8 +20,10 @@ const LIGHTNESS_RANGE = [42, 64] as const;
 
 // Turns any string into a whole number. The same input string always
 // produces the same number — that's what lets us turn "today's date"
-// into "today's random seed".
-function hashStringToSeed(text: string): number {
+// into "today's random seed". Exported so other seeded-by-date features
+// (see lib/colorFacts.ts) can reuse the exact same hashing/PRNG instead
+// of each rolling their own.
+export function hashStringToSeed(text: string): number {
   let hash = 0;
   for (let i = 0; i < text.length; i++) {
     // `| 0` truncates to a 32-bit integer, keeping the math fast and stable.
@@ -33,7 +35,7 @@ function hashStringToSeed(text: string): number {
 // A small, fast "pseudo-random number generator" called mulberry32.
 // Unlike Math.random(), it's deterministic: the same seed always produces
 // the exact same sequence of numbers between 0 and 1.
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let state = seed;
   return function next(): number {
     state = (state + 0x6d2b79f5) | 0;
@@ -45,7 +47,7 @@ function mulberry32(seed: number): () => number {
 
 // Formats a date as "YYYY-MM-DD" in local time, so the target changes at
 // local midnight for the player.
-function dateToSeedString(date: Date): string {
+export function dateToSeedString(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');

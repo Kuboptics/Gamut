@@ -1,7 +1,7 @@
-# CLAUDE.md — Color Hunt
+# CLAUDE.md — Gamut
 
 ## What this project is
-Color Hunt is a daily color-matching game. Each day a target color drops. The player finds something in the real world that matches it, photographs it, and the app scores how close the photo's color is to the target. It is built for iPhone first with Expo and React Native. This file is the source of truth for how to build the app. Read it before making changes.
+Gamut is a daily color-matching game. Each day a target color drops. The player finds something in the real world that matches it, photographs it, and the app scores how close the photo's color is to the target. It is built for iPhone first with Expo and React Native. This file is the source of truth for how to build the app. Read it before making changes.
 
 ## Who you are working with
 The two people building this are learning to code. Favor clarity over cleverness.
@@ -33,10 +33,12 @@ The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technica
 - Text muted: #8A8A8A
 - Signal accent, used extremely sparingly and only for live or alert states such as the daily countdown dot: #D71921
 - Game color content: dynamic, driven by the target and the shot. This is the only place hues are allowed to appear.
+- A couple of other narrow, deliberate exceptions to the monochrome rule live alongside the signal accent: a green PASS indicator paired with the red FAIL one, and a warm red-orange flame icon on the Progress tab (the streak symbol) — both stay in the same restrained red/green family rather than introducing a random hue.
 
 ### Typography
-- Display and numerals (the score, the countdown, big headers): a dot-matrix font to echo Nothing's dotted typeface. Use a free one such as DotGothic16, Micro 5, or Pixelify Sans from Google Fonts. The real Nothing font (Ndot) is proprietary, so do not use it.
-- Body: a clean neutral grotesque such as Inter, or the system font.
+- Display type (the big score/percentage, the streak number, screen titles, and the PASS/FAIL verdict): Fugaz One, a bold rounded display face that echoes Nothing's confident numerals. The real Nothing font (Ndot) is proprietary, so do not use it.
+- Data readouts (the target hex code and the daily drop countdown): the body font at a semibold weight with tabular figures, not the display font — these need to be read precisely and shouldn't compete with the display type's hero moments.
+- Body: Work Sans, the app's default type for everything else — labels, buttons, list rows, general UI.
 - Labels: uppercase, wide letter spacing, small size, muted color. Technical caption style.
 
 ### Layout and feel

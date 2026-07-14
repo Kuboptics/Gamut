@@ -37,7 +37,12 @@ type RoundContextValue = {
   // Copies temporaryPhotoUri into permanent storage, records its score,
   // and returns the new banked count.
   bankPhoto: (score: number, temporaryPhotoUri: string) => number;
-  resetRound: () => void;
+  // By default this deletes the round's banked photo files — correct
+  // for an abandoned round (see the midnight-rollover effect below).
+  // Pass `keepPhotos: true` when the round has already been recorded
+  // to history (see app/summary.tsx) and its photos are now that
+  // record's responsibility, not this context's, to clean up.
+  resetRound: (options?: { keepPhotos?: boolean }) => void;
 };
 
 const RoundContext = createContext<RoundContextValue | null>(null);
@@ -133,8 +138,10 @@ export function RoundProvider({ children }: { children: ReactNode }) {
     });
   }, [scores, photoUris, dateKey, isLoaded]);
 
-  function resetRound() {
-    deletePhotoFiles(photoUris);
+  function resetRound(options?: { keepPhotos?: boolean }) {
+    if (!options?.keepPhotos) {
+      deletePhotoFiles(photoUris);
+    }
     setScores([]);
     setPhotoUris([]);
   }
