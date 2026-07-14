@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 
 import { motionDuration } from '../constants/motion';
 import { colors } from '../constants/theme';
+import { AuthProvider } from '../context/AuthContext';
 import { HistoryProvider } from '../context/HistoryContext';
 import { ReminderProvider } from '../context/ReminderContext';
 import { RoundProvider } from '../context/RoundContext';
@@ -42,15 +43,17 @@ export default function RootLayout() {
       <StreakProvider>
         <HistoryProvider>
           <ReminderProvider>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.background },
-                animation: reducedMotion ? 'none' : 'fade',
-                animationDuration: motionDuration.base,
-              }}
-            />
+            <AuthProvider>
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.background },
+                  animation: reducedMotion ? 'none' : 'fade',
+                  animationDuration: motionDuration.base,
+                }}
+              />
+            </AuthProvider>
           </ReminderProvider>
         </HistoryProvider>
       </StreakProvider>

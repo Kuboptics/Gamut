@@ -1,4 +1,5 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +9,9 @@ import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { PrimaryButton } from '../../components/PrimaryButton';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
 
 // Formats an hour/minute pair as "6:30 PM" — same 12-hour, no-leading-
@@ -47,6 +50,8 @@ const HOW_IT_WORKS = [
 export default function SettingsScreen() {
   const { enabled, hour, minute, isLoaded, permissionDenied, setEnabled, setTime } = useReminder();
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
+  const router = useRouter();
+  const { user, isLoaded: isAuthLoaded, signOut } = useAuth();
 
   // The picker component wants a Date, but only its hour/minute matter
   // — the rest of the date is thrown away as soon as it changes.
@@ -123,6 +128,31 @@ export default function SettingsScreen() {
 
           <Label style={styles.note}>Local reminder only — nothing leaves your phone</Label>
         </Panel>
+
+        {isAuthLoaded && (
+          <Panel style={styles.accountPanel}>
+            <Label>Account</Label>
+
+            {user ? (
+              <>
+                <BodyText style={styles.rowLabel}>{user.email}</BodyText>
+                <PressableOpacity onPress={() => signOut()}>
+                  <BodyText style={styles.link}>Sign Out</BodyText>
+                </PressableOpacity>
+              </>
+            ) : (
+              <>
+                <BodyText style={styles.note}>
+                  Sign in to get ready for friends and leaderboards — the game itself never requires it.
+                </BodyText>
+                <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
+                <PressableOpacity onPress={() => router.push('/sign-in')}>
+                  <BodyText style={styles.link}>Already have an account? Sign In</BodyText>
+                </PressableOpacity>
+              </>
+            )}
+          </Panel>
+        )}
 
         <Panel style={styles.howItWorksPanel}>
           <Label>How It Works</Label>
@@ -221,6 +251,19 @@ const styles = StyleSheet.create({
   picker: {
     height: 160,
     width: '100%',
+  },
+  // Layout only — the surface fill/border/radius come from Panel.
+  accountPanel: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    gap: spacing.md,
+  },
+  link: {
+    fontFamily: fonts.primary,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   // Layout only — the surface fill/border/radius come from Panel.
   howItWorksPanel: {
