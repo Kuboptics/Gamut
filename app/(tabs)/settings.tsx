@@ -51,7 +51,7 @@ const HOW_IT_WORKS = [
   },
   {
     title: 'Build a Streak',
-    body: 'Playing — and passing — each day grows your streak. Miss a day and it resets.',
+    body: 'Playing any day — pass or fail — grows your streak. Miss a day and it resets.',
   },
 ];
 

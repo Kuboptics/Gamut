@@ -15,7 +15,6 @@ import { motionDuration, motionEasing, REVEAL_STAGGER_MS } from '../constants/mo
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useHistory } from '../context/HistoryContext';
 import { PASS_THRESHOLD, useRound } from '../context/RoundContext';
-import { useStreak } from '../context/StreakContext';
 import { useSync } from '../context/SyncContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { getDailyTarget } from '../lib/dailyColor';
@@ -44,7 +43,6 @@ function revealStep(step: number) {
 export default function SummaryScreen() {
   const router = useRouter();
   const { scores, photoUris, resetRound } = useRound();
-  const { recordPass } = useStreak();
   const { recordDay } = useHistory();
   const { pushRecord } = useSync();
   const target = getDailyTarget();
@@ -52,13 +50,13 @@ export default function SummaryScreen() {
   const average = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
   const passed = average >= PASS_THRESHOLD;
 
-  // Record the full day's record (for the Calendar screen and the
-  // day-detail view) and, on a pass, bump the streak — both exactly
-  // once, the moment the result is revealed. The ref guard (rather than
-  // relying only on the effect's dependency array) makes this robust
-  // even if recordDay/recordPass ever change identity between renders —
-  // it can only run the body once per time this screen is mounted, full
-  // stop.
+  // Records the full day's record (for the Calendar screen, day-detail
+  // view, and the streak — see StreakContext, which derives the streak
+  // from history rather than needing a separate call here) exactly once,
+  // the moment the result is revealed. The ref guard (rather than relying
+  // only on the effect's dependency array) makes this robust even if
+  // recordDay ever changes identity between renders — it can only run the
+  // body once per time this screen is mounted, full stop.
   const hasRecordedRef = useRef(false);
   useEffect(() => {
     if (hasRecordedRef.current) return;
@@ -75,19 +73,7 @@ export default function SummaryScreen() {
       photoUris,
     });
     pushRecord(dateKey, stored);
-    if (passed) recordPass();
-  }, [
-    passed,
-    recordPass,
-    recordDay,
-    pushRecord,
-    target.hex,
-    target.hue,
-    target.saturation,
-    target.lightness,
-    scores,
-    photoUris,
-  ]);
+  }, [passed, recordDay, pushRecord, target.hex, target.hue, target.saturation, target.lightness, scores, photoUris]);
 
   // The average counts up from 0 rather than snapping straight to its
   // final value — a plain requestAnimationFrame loop driving React

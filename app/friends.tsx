@@ -26,7 +26,7 @@ import {
   type IncomingRequest,
   type OutgoingRequest,
 } from '../lib/friends';
-import { fetchLeaderboard, type LeaderboardEntry } from '../lib/leaderboard';
+import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../lib/leaderboard';
 
 // Friend codes + mutual-accept requests, display names, and a friends
 // leaderboard/feed built from synced round_results. Reachable only from
@@ -68,7 +68,7 @@ export default function FriendsScreen() {
           friendList.map((friend) => friend.userId)
         );
       })
-      .then((entries) => setLeaderboard(entries.slice().sort((a, b) => b.streak - a.streak)))
+      .then((entries) => setLeaderboard(rankLeaderboard(entries)))
       .catch(() => setLoadError(true));
   }, [userId, email]);
 
@@ -226,7 +226,10 @@ export default function FriendsScreen() {
             <View key={entry.userId} style={styles.row}>
               <View style={styles.rowLabelGroup}>
                 <Label style={styles.rank}>{index + 1}</Label>
-                <BodyText style={styles.rowLabel}>{entry.userId === userId ? 'You' : entry.displayName}</BodyText>
+                <View>
+                  <BodyText style={styles.rowLabel}>{entry.userId === userId ? 'You' : entry.displayName}</BodyText>
+                  <Label>{todayStatusLabel(entry)}</Label>
+                </View>
               </View>
               <View style={styles.rowLabelGroup}>
                 <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
@@ -243,7 +246,10 @@ export default function FriendsScreen() {
           ) : (
             feed.map((entry) => (
               <View key={entry.userId} style={styles.row}>
-                <BodyText style={styles.rowLabel}>{entry.displayName}</BodyText>
+                <View>
+                  <BodyText style={styles.rowLabel}>{entry.displayName}</BodyText>
+                  <Label>{todayStatusLabel(entry)}</Label>
+                </View>
                 <View style={styles.rowLabelGroup}>
                   <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
                   <StatusDot entry={entry} />
@@ -285,6 +291,13 @@ function ActionButton({ label, tone, onPress }: { label: string; tone: ActionBut
 function StatusDot({ entry }: { entry: LeaderboardEntry }) {
   const style = !entry.playedToday ? styles.statusDotPending : entry.passedToday ? styles.statusDotPass : styles.statusDotFail;
   return <View style={[styles.statusDot, style]} />;
+}
+
+// "73% · Pass", "41% · Fail", or "Not yet" — plain text for now (see
+// Stage notes: visual design for this is a separate pass).
+function todayStatusLabel(entry: LeaderboardEntry): string {
+  if (!entry.playedToday) return 'Not yet';
+  return `${entry.todayAverage}% · ${entry.passedToday ? 'Pass' : 'Fail'}`;
 }
 
 const styles = StyleSheet.create({
