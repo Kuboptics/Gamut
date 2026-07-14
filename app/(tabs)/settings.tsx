@@ -1,6 +1,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,9 +15,15 @@ import { TextField } from '../../components/TextField';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
-import { ensureProfile, updateDisplayName } from '../../lib/friends';
+import { ensureProfile, fetchIncomingRequests, updateDisplayName } from '../../lib/friends';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
+
+// "You can change your name again on July 21, 2026." — same date style
+// as app/day-detail.tsx.
+function formatLockDate(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 // Formats an hour/minute pair as "6:30 PM" — same 12-hour, no-leading-
 // zero style a clock face would use.
@@ -58,35 +65,60 @@ export default function SettingsScreen() {
   const { user, isLoaded: isAuthLoaded, signOut } = useAuth();
 
   const [displayNameInput, setDisplayNameInput] = useState('');
+  const [nameLockedUntil, setNameLockedUntil] = useState<string | null>(null);
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [profileLoadError, setProfileLoadError] = useState(false);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+
+  const userId = user?.id;
+  const userEmail = user?.email;
 
   // Seeds the field with the current name (creating a profile with a
   // sensible default if this account somehow doesn't have one yet — e.g.
   // it signed up before display names existed, or before Friends was ever
-  // opened). Never overwrites anything the user is actively typing.
-  const userId = user?.id;
-  const userEmail = user?.email;
-  useEffect(() => {
+  // opened). Never overwrites anything the user is actively typing. Also
+  // refreshes the incoming-request badge, so re-running on every focus
+  // (not just mount) keeps it accurate after visiting Friends.
+  const refreshProfile = useCallback(() => {
     if (!userId) return;
     const fallbackName = userEmail?.split('@')[0] ?? 'Player';
+    setProfileLoadError(false);
     ensureProfile(userId, fallbackName)
-      .then((profile) => setDisplayNameInput(profile.displayName))
+      .then((profile) => {
+        setDisplayNameInput(profile.displayName);
+        setNameLockedUntil(profile.displayNameLockedUntil);
+      })
+      .catch(() => setProfileLoadError(true));
+    fetchIncomingRequests(userId)
+      .then((requests) => setPendingRequestCount(requests.length))
       .catch(() => {});
   }, [userId, userEmail]);
+
+  useFocusEffect(refreshProfile);
 
   async function handleSaveName() {
     if (!user || isSavingName) return;
     const trimmed = displayNameInput.trim();
     if (!trimmed) return;
+    if (nameLockedUntil && Date.now() < new Date(nameLockedUntil).getTime()) {
+      setNameError(`You can change your name again on ${formatLockDate(nameLockedUntil)}.`);
+      return;
+    }
     setIsSavingName(true);
     setNameSaved(false);
+    setNameError(null);
     try {
-      await updateDisplayName(user.id, trimmed);
-      setNameSaved(true);
+      const result = await updateDisplayName(user.id, trimmed);
+      if (result.ok) {
+        setNameSaved(true);
+      } else {
+        setNameLockedUntil(result.lockedUntil);
+        setNameError(`You can change your name again on ${formatLockDate(result.lockedUntil)}.`);
+      }
     } catch {
-      // Non-fatal: the name just didn't save this time; the field still
-      // shows what was typed, so trying Save again works.
+      setNameError("Couldn't save that name — try again.");
     } finally {
       setIsSavingName(false);
     }
@@ -175,29 +207,47 @@ export default function SettingsScreen() {
             {user ? (
               <>
                 <BodyText style={styles.rowLabel}>{user.email}</BodyText>
+
+                {profileLoadError && (
+                  <View style={styles.errorRow}>
+                    <BodyText style={styles.error}>{"Couldn't load your profile."}</BodyText>
+                    <PressableOpacity onPress={refreshProfile}>
+                      <BodyText style={styles.link}>Try Again</BodyText>
+                    </PressableOpacity>
+                  </View>
+                )}
+
                 <TextField
                   label="Display Name"
                   value={displayNameInput}
                   onChangeText={(text) => {
                     setDisplayNameInput(text);
                     setNameSaved(false);
+                    setNameError(null);
                   }}
                   placeholder="Player"
                   maxLength={MAX_DISPLAY_NAME_LENGTH}
                   autoComplete="name"
                   textContentType="name"
                 />
-                <PressableOpacity onPress={handleSaveName}>
-                  <BodyText style={styles.link}>
-                    {isSavingName ? 'Saving…' : nameSaved ? 'Saved' : 'Save Name'}
-                  </BodyText>
-                </PressableOpacity>
-                <PressableOpacity onPress={() => router.push('/friends')}>
-                  <BodyText style={styles.link}>Friends</BodyText>
-                </PressableOpacity>
-                <PressableOpacity onPress={() => signOut()}>
-                  <BodyText style={styles.link}>Sign Out</BodyText>
-                </PressableOpacity>
+                {nameError && <BodyText style={styles.error}>{nameError}</BodyText>}
+                <PrimaryButton
+                  label={isSavingName ? 'Saving…' : nameSaved ? 'Saved' : 'Save Name'}
+                  onPress={handleSaveName}
+                  style={isSavingName ? styles.buttonDisabled : undefined}
+                />
+
+                <View style={styles.row}>
+                  <PressableOpacity onPress={() => router.push('/friends')}>
+                    <View style={styles.rowLabelGroup}>
+                      <BodyText style={styles.link}>Friends</BodyText>
+                      {pendingRequestCount > 0 && <View style={styles.badgeDot} />}
+                    </View>
+                  </PressableOpacity>
+                  <PressableOpacity onPress={() => signOut()}>
+                    <BodyText style={styles.link}>Sign Out</BodyText>
+                  </PressableOpacity>
+                </View>
               </>
             ) : (
               <>
@@ -323,6 +373,25 @@ const styles = StyleSheet.create({
     fontFamily: fonts.primary,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  error: {
+    color: colors.signal,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  // Same small red dot language as `liveDot` above — reused here as a
+  // notification badge next to "Friends" when a request is waiting.
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.signal,
   },
   // Layout only — the surface fill/border/radius come from Panel.
   howItWorksPanel: {

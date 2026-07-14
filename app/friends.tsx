@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '../components/BackButton';
@@ -28,18 +28,19 @@ import {
 } from '../lib/friends';
 import { fetchLeaderboard, type LeaderboardEntry } from '../lib/leaderboard';
 
-// Friend codes + mutual-accept requests, plus (Stage 5) display names and
-// a friends leaderboard/feed built from synced round_results. Reachable
-// only from Settings' Account panel while signed in.
+// Friend codes + mutual-accept requests, display names, and a friends
+// leaderboard/feed built from synced round_results. Reachable only from
+// Settings' Account panel while signed in.
 export default function FriendsScreen() {
   const { user } = useAuth();
   const userId = user!.id; // this screen is only ever reachable while signed in
 
   const [myCode, setMyCode] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [hasFriends, setHasFriends] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const [codeInput, setCodeInput] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
@@ -50,21 +51,25 @@ export default function FriendsScreen() {
   const email = user?.email;
   const refresh = useCallback(() => {
     const fallbackName = email?.split('@')[0] ?? 'Player';
+    setLoadError(false);
+
     ensureProfile(userId, fallbackName)
       .then((profile) => setMyCode(profile.friendCode))
-      .catch(() => {});
-    fetchIncomingRequests(userId).then(setIncoming).catch(() => {});
-    fetchOutgoingRequests(userId).then(setOutgoing).catch(() => {});
+      .catch(() => setLoadError(true));
+
+    fetchIncomingRequests(userId).then(setIncoming).catch(() => setLoadError(true));
+    fetchOutgoingRequests(userId).then(setOutgoing).catch(() => setLoadError(true));
+
     fetchFriends(userId)
-      .then((friends: Friend[]) => {
-        setHasFriends(friends.length > 0);
+      .then((friendList) => {
+        setFriends(friendList);
         return fetchLeaderboard(
           userId,
-          friends.map((friend) => friend.userId)
+          friendList.map((friend) => friend.userId)
         );
       })
       .then((entries) => setLeaderboard(entries.slice().sort((a, b) => b.streak - a.streak)))
-      .catch(() => {});
+      .catch(() => setLoadError(true));
   }, [userId, email]);
 
   // Refetches every time this screen gains focus — e.g. coming back to it
@@ -122,14 +127,19 @@ export default function FriendsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {loadError && (
+          <Panel style={styles.panel}>
+            <BodyText style={styles.error}>{"Couldn't load your friends data."}</BodyText>
+            <PrimaryButton label="Try Again" onPress={refresh} />
+          </Panel>
+        )}
+
         <Panel style={styles.panel}>
           <Label>Your Code</Label>
           {myCode ? (
             <>
               <ReadoutText style={styles.code}>{myCode}</ReadoutText>
-              <PressableOpacity onPress={handleCopyCode}>
-                <BodyText style={styles.link}>{copied ? 'Copied' : 'Copy Code'}</BodyText>
-              </PressableOpacity>
+              <ActionButton label={copied ? 'Copied' : 'Copy Code'} tone="neutral" onPress={handleCopyCode} />
             </>
           ) : (
             <BodyText style={styles.note}>Loading your code…</BodyText>
@@ -160,7 +170,14 @@ export default function FriendsScreen() {
         </Panel>
 
         <Panel style={styles.panel}>
-          <Label>Requests</Label>
+          <View style={styles.sectionHeader}>
+            <Label>Requests</Label>
+            {incoming.length > 0 && (
+              <View style={styles.countBadge}>
+                <BodyText style={styles.countBadgeText}>{incoming.length}</BodyText>
+              </View>
+            )}
+          </View>
           {incoming.length === 0 ? (
             <BodyText style={styles.note}>No pending requests.</BodyText>
           ) : (
@@ -168,12 +185,8 @@ export default function FriendsScreen() {
               <View key={request.id} style={styles.row}>
                 <BodyText style={styles.rowLabel}>{request.senderDisplayName}</BodyText>
                 <View style={styles.rowActions}>
-                  <PressableOpacity onPress={() => handleRespond(request.id, 'declined')}>
-                    <BodyText style={styles.decline}>Decline</BodyText>
-                  </PressableOpacity>
-                  <PressableOpacity onPress={() => handleRespond(request.id, 'accepted')}>
-                    <BodyText style={styles.accept}>Accept</BodyText>
-                  </PressableOpacity>
+                  <ActionButton label="Decline" tone="signal" onPress={() => handleRespond(request.id, 'declined')} />
+                  <ActionButton label="Accept" tone="positive" onPress={() => handleRespond(request.id, 'accepted')} />
                 </View>
               </View>
             ))
@@ -189,6 +202,19 @@ export default function FriendsScreen() {
               <View key={request.id} style={styles.row}>
                 <BodyText style={styles.rowLabel}>{request.receiverDisplayName}</BodyText>
                 <Label>Pending</Label>
+              </View>
+            ))
+          )}
+        </Panel>
+
+        <Panel style={styles.panel}>
+          <Label>Friends</Label>
+          {friends.length === 0 ? (
+            <BodyText style={styles.note}>No friends yet — share your code to add one.</BodyText>
+          ) : (
+            friends.map((friend) => (
+              <View key={friend.id} style={styles.row}>
+                <BodyText style={styles.rowLabel}>{friend.displayName}</BodyText>
               </View>
             ))
           )}
@@ -212,7 +238,7 @@ export default function FriendsScreen() {
 
         <Panel style={styles.panel}>
           <Label>Feed</Label>
-          {!hasFriends ? (
+          {friends.length === 0 ? (
             <BodyText style={styles.note}>Add a friend to see their progress here.</BodyText>
           ) : (
             feed.map((entry) => (
@@ -228,6 +254,28 @@ export default function FriendsScreen() {
         </Panel>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+type ActionButtonTone = 'positive' | 'signal' | 'neutral';
+
+const TONE_COLOR: Record<ActionButtonTone, string> = {
+  positive: colors.positive,
+  signal: colors.signal,
+  neutral: colors.textPrimary,
+};
+
+// A small, obviously-tappable bordered button for row-level actions
+// (Copy Code, Accept, Decline) — deliberately not `PrimaryButton` (that's
+// reserved for one full-width main action per screen) and deliberately
+// not plain tappable text, which is the exact confusion this replaces.
+function ActionButton({ label, tone, onPress }: { label: string; tone: ActionButtonTone; onPress: () => void }) {
+  const toneColor = TONE_COLOR[tone];
+  const style: StyleProp<ViewStyle> = [styles.actionButton, { borderColor: toneColor }];
+  return (
+    <PressableOpacity style={style} onPress={onPress}>
+      <BodyText style={[styles.actionButtonLabel, { color: toneColor }]}>{label}</BodyText>
+    </PressableOpacity>
   );
 }
 
@@ -283,12 +331,27 @@ const styles = StyleSheet.create({
   success: {
     color: colors.positive,
   },
-  link: {
-    fontFamily: fonts.primary,
-    color: colors.textMuted,
-  },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  countBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.signal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    fontFamily: fonts.primarySemiBold,
+    fontSize: 11,
+    color: colors.textPrimary,
   },
   row: {
     flexDirection: 'row',
@@ -317,15 +380,19 @@ const styles = StyleSheet.create({
   },
   rowActions: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    gap: spacing.sm,
   },
-  decline: {
-    fontFamily: fonts.primary,
-    color: colors.signal,
+  actionButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
-  accept: {
+  actionButtonLabel: {
     fontFamily: fonts.primarySemiBold,
-    color: colors.positive,
+    fontSize: typeScale.label,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   statusDot: {
     width: 8,

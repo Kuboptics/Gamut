@@ -24,6 +24,9 @@ export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
 export type Profile = {
   friendCode: string;
   displayName: string;
+  // Null unless a display-name cooldown (see updateDisplayName) is
+  // currently active.
+  displayNameLockedUntil: string | null;
 };
 
 export type IncomingRequest = {
@@ -48,35 +51,89 @@ export type Friend = {
 
 // Returns the signed-in user's friend code + display name, creating the
 // profile row the first time it's needed (first Friends/Settings visit,
-// or right after sign-up if a session came back immediately) — retrying a
-// handful of times if a randomly generated code collides with someone
-// else's, and using `fallbackDisplayName` only if the profile doesn't
-// exist yet (an existing name is never overwritten here).
+// or right after sign-up if a session came back immediately). Both
+// Settings and Friends call this independently, so two calls can race on
+// a brand-new account — the select happens at the *top of every retry*
+// (not just once before the loop), so if a concurrent call wins the
+// insert, the next iteration's select finds its row instead of assuming
+// every duplicate-key error must mean "my friend_code collided, try a
+// fresh one" and looping forever on an id that already exists.
 export async function ensureProfile(userId: string, fallbackDisplayName: string): Promise<Profile> {
-  const { data: existing, error: selectError } = await supabase
-    .from('profiles')
-    .select('friend_code, display_name')
-    .eq('id', userId)
-    .maybeSingle();
-  if (selectError) throw selectError;
-  if (existing) return { friendCode: existing.friend_code, displayName: existing.display_name };
-
   for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existing, error: selectError } = await supabase
+      .from('profiles')
+      .select('friend_code, display_name, display_name_locked_until')
+      .eq('id', userId)
+      .maybeSingle();
+    if (selectError) throw selectError;
+    if (existing) {
+      return {
+        friendCode: existing.friend_code,
+        displayName: existing.display_name,
+        displayNameLockedUntil: existing.display_name_locked_until,
+      };
+    }
+
     const code = generateCode();
     const { error: insertError } = await supabase
       .from('profiles')
       .insert({ id: userId, friend_code: code, display_name: fallbackDisplayName });
-    if (!insertError) return { friendCode: code, displayName: fallbackDisplayName };
+    if (!insertError) return { friendCode: code, displayName: fallbackDisplayName, displayNameLockedUntil: null };
     if (insertError.code !== UNIQUE_VIOLATION) throw insertError;
-    // Collision on `friend_code` — loop around and try a fresh one.
+    // A duplicate-key error here means either a concurrent call already
+    // created this profile (a violation on the *id* primary key — the
+    // next loop iteration's select above will find it) or a `friend_code`
+    // collision with someone else's row (fixed by simply trying a fresh
+    // code next time around) — looping back handles both correctly.
   }
 
-  throw new Error('Could not generate a unique friend code. Try again.');
+  throw new Error('Could not create or load your profile. Try again.');
 }
 
-export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
-  const { error } = await supabase.from('profiles').update({ display_name: displayName }).eq('id', userId);
-  if (error) throw error;
+const MAX_FREE_NAME_CHANGES = 2;
+const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type UpdateDisplayNameResult = { ok: true } | { ok: false; lockedUntil: string };
+
+// Enforced using columns stored on the profile row itself (not local
+// state), so the cooldown survives reinstalls or a second device — though
+// it's only as tamper-proof as the app calling it honestly; a real attack
+// would need a database-side check (e.g. a trigger), which felt like
+// more machinery than this stage needs. Allows 2 free changes, then locks
+// further edits for 7 days; once a lock expires, the next change starts a
+// fresh 2-change window.
+export async function updateDisplayName(userId: string, displayName: string): Promise<UpdateDisplayNameResult> {
+  const { data: profile, error: selectError } = await supabase
+    .from('profiles')
+    .select('display_name_change_count, display_name_locked_until')
+    .eq('id', userId)
+    .maybeSingle();
+  if (selectError) throw selectError;
+  if (!profile) throw new Error('Profile not found.');
+
+  const now = Date.now();
+  const lockedUntil = profile.display_name_locked_until ? new Date(profile.display_name_locked_until).getTime() : null;
+  if (lockedUntil !== null && now < lockedUntil) {
+    return { ok: false, lockedUntil: profile.display_name_locked_until };
+  }
+
+  // No active lock: either this account has never hit the limit, or a
+  // previous lock just expired — either way this change starts (or
+  // continues) a fresh window.
+  const wasLockExpired = lockedUntil !== null && now >= lockedUntil;
+  const nextCount = wasLockExpired ? 1 : profile.display_name_change_count + 1;
+  const nextLockedUntil = nextCount >= MAX_FREE_NAME_CHANGES ? new Date(now + NAME_CHANGE_COOLDOWN_MS).toISOString() : null;
+
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({
+      display_name: displayName,
+      display_name_change_count: nextCount,
+      display_name_locked_until: nextLockedUntil,
+    })
+    .eq('id', userId);
+  if (updateError) throw updateError;
+  return { ok: true };
 }
 
 async function lookupUserIdByCode(code: string): Promise<string | null> {
