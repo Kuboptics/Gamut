@@ -11,6 +11,7 @@ import { TickRule } from '../../components/TickRule';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { useStreak } from '../../context/StreakContext';
+import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { contrastTextColor } from '../../lib/color';
 
 // A YYYY-MM-DD key in local time — matches the key shape HistoryContext
@@ -90,9 +91,10 @@ export default function ProgressScreen() {
   const month = today.getMonth();
   const weeks = getMonthGrid(today);
   const monthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const swipeHandlers = useTabSwipe(1);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...swipeHandlers}>
       <View style={styles.header}>
         <HeroText style={styles.title}>Progress</HeroText>
       </View>

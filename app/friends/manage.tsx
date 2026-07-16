@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { Share, ScrollView, StyleSheet, View } from 'react-native';
@@ -80,6 +81,7 @@ export default function ManageFriendsScreen() {
 
   async function handleSendRequest() {
     if (isSending) return;
+    Haptics.selectionAsync().catch(() => {});
     setSendError(null);
     setSendSuccess(false);
     setIsSending(true);
@@ -100,6 +102,7 @@ export default function ManageFriendsScreen() {
   }
 
   async function handleRespond(requestId: string, status: 'accepted' | 'declined') {
+    if (status === 'accepted') Haptics.selectionAsync().catch(() => {});
     try {
       await respondToRequest(requestId, status);
       refresh();
@@ -169,11 +172,7 @@ export default function ManageFriendsScreen() {
         <Panel style={styles.panel}>
           <View style={styles.sectionHeader}>
             <Label>Requests</Label>
-            {incoming.length > 0 && (
-              <View style={styles.countBadge}>
-                <BodyText style={styles.countBadgeText}>{incoming.length}</BodyText>
-              </View>
-            )}
+            {incoming.length > 0 && <View style={styles.countBadge} />}
           </View>
 
           {!hasAnyRequests ? (
@@ -292,19 +291,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  // A small alert dot — the same restrained signal every other pending/
+  // live indicator in the app uses (the header's own manageBadge, the
+  // countdown/reminder live dots) — not a heavier filled count pill.
   countBadge: {
-    minWidth: 18,
-    height: 18,
+    width: 8,
+    height: 8,
     borderRadius: radius.sm,
-    paddingHorizontal: spacing.xs,
     backgroundColor: colors.signal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countBadgeText: {
-    fontFamily: fonts.primarySemiBold,
-    fontSize: 11,
-    color: colors.textPrimary,
   },
   // Groups Incoming/Sent within the one merged Requests panel — a small
   // sub-label rather than a whole separate boxed section.

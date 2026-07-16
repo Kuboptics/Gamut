@@ -1,3 +1,5 @@
+import * as Haptics from 'expo-haptics';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -8,16 +10,19 @@ import { BodyText } from '../components/BodyText';
 import { HeroText } from '../components/HeroText';
 import { Label } from '../components/Label';
 import { Panel } from '../components/Panel';
-import { PressableOpacity } from '../components/PressableOpacity';
+import { PixelSampler } from '../components/PixelSampler';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ResultCelebration } from '../components/ResultCelebration';
 import { motionDuration, motionEasing, REVEAL_STAGGER_MS } from '../constants/motion';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useHistory } from '../context/HistoryContext';
-import { PASS_THRESHOLD, useRound } from '../context/RoundContext';
+import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { useSync } from '../context/SyncContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { findBestPatch } from '../lib/bestPatch';
+import type { RGB } from '../lib/color';
 import { getDailyTarget } from '../lib/dailyColor';
+import { scoreFromDistance } from '../lib/scoring';
 
 // A YYYY-MM-DD key in local time — matches the same date-key shape used
 // by RoundContext, StreakContext, and HistoryContext.
@@ -38,28 +43,87 @@ function revealStep(step: number) {
   return FadeIn.delay(step * REVEAL_STAGGER_MS).duration(motionDuration.base).easing(motionEasing);
 }
 
-// The final screen after a 3-photo round: every shot's score, the
-// average, and the PASS/FAIL verdict.
+// Scores exactly one photo — the same pipeline app/preview.tsx used to
+// run per-photo the instant a shot was taken. Scoring now only happens
+// here, at Submit, one photo at a time (see SummaryScreen below), rather
+// than silently in the background while shooting. Renders nothing
+// visible: PixelSampler is an invisible 1x1 WebView.
+function PhotoScorer({ photoUri, targetRgb, onScore }: { photoUri: string; targetRgb: RGB; onScore: (score: number) => void }) {
+  const [sampleImageUri, setSampleImageUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    ImageManipulator.manipulateAsync(photoUri, [{ resize: { width: 200 } }], {
+      base64: true,
+      format: ImageManipulator.SaveFormat.JPEG,
+    })
+      .then((manipulated) => {
+        if (!cancelled) setSampleImageUri(`data:image/jpeg;base64,${manipulated.base64}`);
+      })
+      .catch(() => {
+        // Can't read this photo for some reason — score it 0 rather than
+        // stalling the submit forever on one bad file.
+        if (!cancelled) onScore(0);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoUri]);
+
+  function handleSample(tileColors: RGB[]) {
+    const bestPatch = findBestPatch(tileColors, targetRgb);
+    onScore(scoreFromDistance(bestPatch.distance));
+  }
+
+  return <PixelSampler imageUri={sampleImageUri} onSample={handleSample} onError={() => onScore(0)} />;
+}
+
+// The screen reached only by pressing "Submit Round" on Today, once all
+// 3 slots are filled. This is the one and only place scoring, history
+// recording, cloud sync, and thumbnail upload happen — nothing about a
+// round exists anywhere else until this screen runs.
 export default function SummaryScreen() {
   const router = useRouter();
-  const { scores, photoUris, resetRound } = useRound();
+  const { slots, resetRound } = useRound();
   const { recordDay } = useHistory();
   const { pushRecord, pushThumbnails } = useSync();
   const target = getDailyTarget();
 
-  const average = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+  const photoUris = slots.filter((uri): uri is string => uri !== null);
+  const allFilled = photoUris.length === PHOTOS_PER_ROUND;
+
+  // Guards against ever reaching this screen with an incomplete round —
+  // a stale deep link, a restored navigation state, anything — bouncing
+  // back to Today instead of crashing on a missing photo. Submit is the
+  // only real way in, and it never navigates here unless all 3 are full.
+  useEffect(() => {
+    if (!allFilled) router.replace('/');
+  }, [allFilled, router]);
+
+  const [scores, setScores] = useState<number[]>([]);
+  const allScored = scores.length === PHOTOS_PER_ROUND;
+
+  function handleScore(score: number) {
+    setScores((current) => [...current, score]);
+  }
+
+  const average = allScored ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0;
   const passed = average >= PASS_THRESHOLD;
 
   // Records the full day's record (for the Calendar screen, day-detail
   // view, and the streak — see StreakContext, which derives the streak
-  // from history rather than needing a separate call here) exactly once,
-  // the moment the result is revealed. The ref guard (rather than relying
-  // only on the effect's dependency array) makes this robust even if
-  // recordDay ever changes identity between renders — it can only run the
-  // body once per time this screen is mounted, full stop.
+  // from history rather than needing a separate call here), pushes it to
+  // the cloud, and uploads thumbnails — exactly once, the moment scoring
+  // finishes. The ref guard (rather than relying only on the effect's
+  // dependency array) makes this robust even if recordDay ever changes
+  // identity between renders — it can only run the body once per time
+  // this screen is mounted, full stop.
   const hasRecordedRef = useRef(false);
   useEffect(() => {
-    if (hasRecordedRef.current) return;
+    if (!allScored || hasRecordedRef.current) return;
     hasRecordedRef.current = true;
 
     const dateKey = todayKey();
@@ -74,7 +138,14 @@ export default function SummaryScreen() {
     });
     pushRecord(dateKey, stored);
     pushThumbnails(photoUris);
+
+    // A success/warning notification haptic on reveal — one clear signal
+    // for the one moment on this screen that actually matters.
+    Haptics.notificationAsync(
+      passed ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning
+    ).catch(() => {});
   }, [
+    allScored,
     passed,
     recordDay,
     pushRecord,
@@ -94,6 +165,7 @@ export default function SummaryScreen() {
   const reducedMotion = useReducedMotion();
   const [displayedAverage, setDisplayedAverage] = useState(0);
   useEffect(() => {
+    if (!allScored) return;
     if (reducedMotion) {
       setDisplayedAverage(average);
       return;
@@ -114,19 +186,26 @@ export default function SummaryScreen() {
 
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, [average, reducedMotion]);
+  }, [average, allScored, reducedMotion]);
 
-  // The round is now saved in history, photos included — resetRound no
-  // longer needs to (and must not) delete those photo files, since the
-  // day-detail view reads them straight from the history record.
-  function handleRetry() {
-    resetRound({ keepPhotos: true });
-    router.replace('/capture');
-  }
-
+  // Submitting is final either way — pass or fail, there's nothing left
+  // to retry today, so this is the only action once revealed.
   function handleDone() {
     resetRound({ keepPhotos: true });
     router.replace('/');
+  }
+
+  if (!allFilled) return null; // bouncing to Today; nothing to show
+
+  if (!allScored) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.scoringBody}>
+          <HeroText style={styles.title}>Scoring…</HeroText>
+        </View>
+        <PhotoScorer key={scores.length} photoUri={photoUris[scores.length]} targetRgb={target.rgb} onScore={handleScore} />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -163,16 +242,7 @@ export default function SummaryScreen() {
       </Panel>
 
       <View style={styles.actions}>
-        {passed ? (
-          <PrimaryButton label="Done" onPress={handleDone} />
-        ) : (
-          <>
-            <PrimaryButton label="Retry" onPress={handleRetry} />
-            <PressableOpacity style={styles.secondaryButton} onPress={handleDone}>
-              <Label>Back to Today</Label>
-            </PressableOpacity>
-          </>
-        )}
+        <PrimaryButton label="Done" onPress={handleDone} />
       </View>
     </SafeAreaView>
   );
@@ -190,6 +260,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeScale.specimen,
+  },
+  scoringBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Layout only — the surface fill/border/radius now come from Panel.
   body: {
@@ -241,9 +316,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xl,
     gap: spacing.md,
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
   },
 });

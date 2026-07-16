@@ -19,9 +19,12 @@ import { supabase } from './supabase';
 
 const BUCKET = 'thumbnails';
 
-// Small and heavily compressed on purpose — these are tiny leaderboard
-// squares, not something anyone zooms into. A few KB each.
-const THUMBNAIL_WIDTH = 96;
+// Sized to stay sharp at the leaderboard's display size (56pt squares,
+// see components/FriendThumbnails.tsx) even on a 3x-density phone screen
+// (56 * 3 = 168px needed; 240px leaves comfortable headroom), while
+// staying heavily compressed — only 3 of these ever exist per user
+// (overwritten each round), so a modest size increase is still tiny.
+const THUMBNAIL_WIDTH = 240;
 const THUMBNAIL_QUALITY = 0.35;
 
 export function thumbnailPath(userId: string, slot: number): string {

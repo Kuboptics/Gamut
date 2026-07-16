@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyText } from '../../components/BodyText';
@@ -15,6 +15,7 @@ import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { fetchFriends, fetchIncomingRequests } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
 
@@ -34,8 +35,14 @@ export default function FriendsScreen() {
   const [hasFriends, setHasFriends] = useState(false);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [loadError, setLoadError] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const refresh = useCallback(() => {
+  // The one place that actually fetches everything — friends' streaks,
+  // today's results, and thumbnails all come from fetchLeaderboard.
+  // Returns a promise so callers that need to know when it's *done*
+  // (pull-to-refresh's spinner) can await it, while the focus-triggered
+  // refresh below just fires it and ignores the result, same as before.
+  const loadLeaderboard = useCallback(async () => {
     if (!userId) return;
     setLoadError(false);
 
@@ -43,26 +50,40 @@ export default function FriendsScreen() {
       .then((requests) => setPendingRequestCount(requests.length))
       .catch(() => {});
 
-    fetchFriends(userId)
-      .then((friendList) => {
-        setHasFriends(friendList.length > 0);
-        return fetchLeaderboard(
-          userId,
-          friendList.map((friend) => friend.userId)
-        );
-      })
-      .then((entries) => setLeaderboard(rankLeaderboard(entries)))
-      .catch(() => setLoadError(true));
+    try {
+      const friendList = await fetchFriends(userId);
+      setHasFriends(friendList.length > 0);
+      const entries = await fetchLeaderboard(
+        userId,
+        friendList.map((friend) => friend.userId)
+      );
+      setLeaderboard(rankLeaderboard(entries));
+    } catch {
+      setLoadError(true);
+    }
   }, [userId]);
+
+  const refresh = useCallback(() => {
+    loadLeaderboard();
+  }, [loadLeaderboard]);
 
   // Refetches every time this tab gains focus — e.g. coming back from
   // Manage after accepting a request, or from playing today's round.
   useFocusEffect(refresh);
 
+  // Pull-to-refresh: the same load, but tracked so the spinner shows
+  // while it's in flight and disappears once it settles either way.
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await loadLeaderboard();
+    setIsRefreshing(false);
+  }, [loadLeaderboard]);
+
   const [leader, ...rest] = leaderboard;
+  const swipeHandlers = useTabSwipe(2);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...swipeHandlers}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <View style={styles.headerText}>
@@ -92,7 +113,19 @@ export default function FriendsScreen() {
           </Panel>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.textPrimary}
+              titleColor={colors.textMuted}
+              colors={[colors.textPrimary]}
+              progressBackgroundColor={colors.surface}
+            />
+          }
+        >
           {loadError && (
             <Panel style={styles.panel}>
               <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
@@ -183,15 +216,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
   },
   headerText: {
     flex: 1,
     alignItems: 'center',
   },
+  // Same size as Progress/Settings' titles — this is a tab root, not a
+  // sub-screen, and should read with the same weight as its peers.
   title: {
-    fontSize: typeScale.value,
+    fontSize: typeScale.specimen,
   },
   headerSpacer: {
     width: 32,
@@ -265,7 +300,7 @@ const styles = StyleSheet.create({
     fontSize: typeScale.value,
   },
   thumbnails: {
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   streakGroup: {
     flexDirection: 'row',

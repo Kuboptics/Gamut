@@ -13,6 +13,12 @@ import { colors } from '../constants/theme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const PARTICLE_COUNT = 14;
+// Deliberately their own values, not motionDuration.base — a radial
+// burst and a shake need a longer/shorter feel than the app's standard
+// 220ms fade, the same reasoning FlameIcon's ambient flicker durations
+// already use. Both still share the app's one easing curve (motionEasing)
+// below, so they read as the same instrument, just tuned for their own
+// motion.
 const BURST_DURATION_MS = 650;
 const SHAKE_STEP_MS = 90;
 
@@ -66,10 +72,10 @@ export function ResultCelebration({ passed, children }: ResultCelebrationProps) 
       progress.value = withTiming(1, { duration: BURST_DURATION_MS, easing: motionEasing });
     } else {
       shakeX.value = withSequence(
-        withTiming(-6, { duration: SHAKE_STEP_MS / 2 }),
-        withTiming(6, { duration: SHAKE_STEP_MS }),
-        withTiming(-4, { duration: SHAKE_STEP_MS }),
-        withTiming(0, { duration: SHAKE_STEP_MS })
+        withTiming(-6, { duration: SHAKE_STEP_MS / 2, easing: motionEasing }),
+        withTiming(6, { duration: SHAKE_STEP_MS, easing: motionEasing }),
+        withTiming(-4, { duration: SHAKE_STEP_MS, easing: motionEasing }),
+        withTiming(0, { duration: SHAKE_STEP_MS, easing: motionEasing })
       );
     }
     // Fires once, the moment the result is revealed — not on every

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import * as Haptics from 'expo-haptics';
 import { Tabs } from 'expo-router';
 
 import { FlameIcon } from '../../components/FlameIcon';
@@ -36,6 +37,15 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      // A light tick specifically for a physical tap on the tab bar —
+      // tabPress only fires for that, not for programmatic navigation
+      // (e.g. the swipe gesture in hooks/useTabSwipe.ts fires its own
+      // haptic directly, since a swipe never triggers this event).
+      screenListeners={{
+        tabPress: () => {
+          Haptics.selectionAsync().catch(() => {});
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarButton: TabBarButton,

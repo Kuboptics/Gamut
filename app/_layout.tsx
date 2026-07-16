@@ -4,8 +4,9 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
+import { IntroModal } from '../components/IntroModal';
 import { motionDuration } from '../constants/motion';
 import { colors } from '../constants/theme';
 import { AuthProvider } from '../context/AuthContext';
@@ -15,6 +16,7 @@ import { RoundProvider } from '../context/RoundContext';
 import { StreakProvider } from '../context/StreakContext';
 import { SyncProvider } from '../context/SyncContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { hasSeenIntro } from '../lib/introStorage';
 
 // Keep the splash screen up until both font families have loaded, so we
 // never flash default system text before switching to the real ones.
@@ -28,6 +30,17 @@ export default function RootLayout() {
     WorkSans_700Bold,
   });
   const reducedMotion = useReducedMotion();
+
+  // Shown once, the very first time the app is ever opened on this
+  // device — see components/IntroModal.tsx and lib/introStorage.ts.
+  // Starts false so it never flashes on for a returning player while
+  // this check is still in flight.
+  const [showIntro, setShowIntro] = useState(false);
+  useEffect(() => {
+    hasSeenIntro().then((seen) => {
+      if (!seen) setShowIntro(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -55,6 +68,7 @@ export default function RootLayout() {
                     animationDuration: motionDuration.base,
                   }}
                 />
+                <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
               </SyncProvider>
             </ReminderProvider>
           </StreakProvider>

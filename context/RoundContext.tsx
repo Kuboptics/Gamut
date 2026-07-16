@@ -27,23 +27,31 @@ const PHOTOS_DIRECTORY_NAME = 'round-photos';
 // app stays open (so a round doesn't linger into a new day's color).
 const DAY_CHECK_INTERVAL_MS = 30000;
 
+// One of the round's 3 slots — empty (null) until a photo is captured
+// for it, just the photo's URI once it is. Deliberately holds no score:
+// scoring only ever happens once, at Submit (see app/summary.tsx) — a
+// slot is retaken freely up to that point by replacing just its own
+// entry, never touching the other two.
+export type RoundSlots = (string | null)[]; // always length PHOTOS_PER_ROUND
+
+function emptySlots(): RoundSlots {
+  return Array(PHOTOS_PER_ROUND).fill(null);
+}
+
 type StoredRound = {
   dateKey: string;
-  scores: number[];
-  // Parallel to `scores` — same length, same index order.
-  photoUris: string[];
+  slots: RoundSlots;
 };
 
 type RoundContextValue = {
-  scores: number[];
-  // Parallel to `scores` — photoUris[i] is the photo that earned scores[i].
-  photoUris: string[];
+  slots: RoundSlots;
   // False until the persisted round has been read from storage, so
   // screens can avoid flashing "0 of 3" before a saved round loads.
   isLoaded: boolean;
-  // Copies temporaryPhotoUri into permanent storage, records its score,
-  // and returns the new banked count.
-  bankPhoto: (score: number, temporaryPhotoUri: string) => number;
+  // Copies temporaryPhotoUri into permanent storage and records it as
+  // the given slot's photo, replacing whatever (if anything) that slot
+  // held before — the other slots are untouched.
+  setSlot: (index: number, temporaryPhotoUri: string) => void;
   // By default this deletes the round's banked photo files — correct
   // for an abandoned round (see the midnight-rollover effect below).
   // Pass `keepPhotos: true` when the round has already been recorded
@@ -93,18 +101,17 @@ function deletePhotoFiles(uris: string[]): void {
   }
 }
 
-// Holds the running list of per-photo scores (and the photos
-// themselves) for the current round, and persists them to AsyncStorage
-// so a round can be spread across a whole day, closing and reopening
-// the app between shots. Lives above the navigation stack (see
-// app/_layout.tsx) so it also survives moving between the Capture and
-// Preview screens.
+// Holds the round's 3 photo slots (unscored — see app/summary.tsx for
+// where scoring actually happens, only once, at Submit) and persists
+// them to AsyncStorage so a round can be spread across a whole day,
+// closing and reopening the app between shots. Lives above the
+// navigation stack (see app/_layout.tsx) so it also survives moving
+// between the Capture and Preview screens.
 export function RoundProvider({ children }: { children: ReactNode }) {
   const { user, isLoaded: isAuthLoaded } = useAuth();
   const storageKey = scopedStorageKey(BASE_STORAGE_KEY, user?.id ?? null);
 
-  const [scores, setScores] = useState<number[]>([]);
-  const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [slots, setSlots] = useState<RoundSlots>(emptySlots);
   const [dateKey, setDateKey] = useState(todayKey);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -116,8 +123,7 @@ export function RoundProvider({ children }: { children: ReactNode }) {
     if (!isAuthLoaded) return;
     let cancelled = false;
     setIsLoaded(false);
-    setScores([]);
-    setPhotoUris([]);
+    setSlots(emptySlots());
 
     async function load() {
       try {
@@ -125,10 +131,11 @@ export function RoundProvider({ children }: { children: ReactNode }) {
         if (!cancelled && raw) {
           const stored: StoredRound = JSON.parse(raw);
           // Only resume a round that belongs to today's color — a
-          // round saved on a previous day starts fresh instead.
-          if (stored.dateKey === todayKey()) {
-            setScores(stored.scores);
-            setPhotoUris(stored.photoUris ?? []);
+          // round saved on a previous day starts fresh instead. Also
+          // guards against an older, pre-slots StoredRound shape still
+          // sitting in storage from before this model existed.
+          if (stored.dateKey === todayKey() && Array.isArray(stored.slots)) {
+            setSlots(stored.slots);
           }
         }
       } catch {
@@ -144,23 +151,23 @@ export function RoundProvider({ children }: { children: ReactNode }) {
     };
   }, [storageKey, isAuthLoaded]);
 
-  // Persist whenever scores/photos change, but only after the initial
-  // load has happened — otherwise we'd briefly overwrite real saved
-  // progress with an empty round before it's had a chance to load.
+  // Persist whenever the slots change, but only after the initial load
+  // has happened — otherwise we'd briefly overwrite real saved progress
+  // with an empty round before it's had a chance to load.
   useEffect(() => {
     if (!isLoaded) return;
-    const stored: StoredRound = { dateKey, scores, photoUris };
+    const stored: StoredRound = { dateKey, slots };
     AsyncStorage.setItem(storageKey, JSON.stringify(stored)).catch(() => {
       // Non-fatal: progress just won't survive an app restart this time.
     });
-  }, [scores, photoUris, dateKey, isLoaded, storageKey]);
+  }, [slots, dateKey, isLoaded, storageKey]);
 
   function resetRound(options?: { keepPhotos?: boolean }) {
     if (!options?.keepPhotos) {
-      deletePhotoFiles(photoUris);
+      const uris = slots.filter((uri): uri is string => uri !== null);
+      deletePhotoFiles(uris);
     }
-    setScores([]);
-    setPhotoUris([]);
+    setSlots(emptySlots());
   }
 
   // If the app is left open across local midnight, today's target color
@@ -175,23 +182,25 @@ export function RoundProvider({ children }: { children: ReactNode }) {
     }, DAY_CHECK_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateKey, photoUris]);
+  }, [dateKey, slots]);
 
   const value = useMemo<RoundContextValue>(
     () => ({
-      scores,
-      photoUris,
+      slots,
       isLoaded,
-      bankPhoto: (score: number, temporaryPhotoUri: string) => {
+      setSlot: (index: number, temporaryPhotoUri: string) => {
         const permanentUri = copyToPermanentStorage(temporaryPhotoUri);
-        const nextScores = [...scores, score];
-        setScores(nextScores);
-        setPhotoUris([...photoUris, permanentUri]);
-        return nextScores.length;
+        const previous = slots[index];
+        const nextSlots = slots.slice();
+        nextSlots[index] = permanentUri;
+        setSlots(nextSlots);
+        // Only after the new photo is safely copied and slotted in —
+        // never leaves a slot pointing at a deleted file.
+        if (previous) deletePhotoFiles([previous]);
       },
       resetRound,
     }),
-    [scores, photoUris, isLoaded]
+    [slots, isLoaded]
   );
 
   return <RoundContext.Provider value={value}>{children}</RoundContext.Provider>;

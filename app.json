@@ -1,34 +1,63 @@
 {
   "expo": {
     "name": "Gamut",
-    "slug": "colorhunt",
+    "slug": "kubopticss-project",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "colorhunt",
     "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.kuboptics.gamut",
+      "supportsTablet": false
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#000000",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#121212",
+          "image": "./assets/images/icon.png",
+          "imageWidth": 160
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Gamut needs your camera to photograph today's color.",
+          "photosPermission": "Gamut needs your photo library to pick a photo of today's color."
+        }
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "reactCompiler": true
-    }
+    },
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/e637dc1d-4880-4605-a507-d6cc10a6b2b1",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e637dc1d-4880-4605-a507-d6cc10a6b2b1"
+      },
+      "router": {}
+    },
+    "owner": "kubopticss-team"
   }
 }

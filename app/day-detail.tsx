@@ -10,6 +10,7 @@ import { Label } from '../components/Label';
 import { Panel } from '../components/Panel';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { ReadoutText } from '../components/ReadoutText';
+import { StatusDot } from '../components/StatusDot';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useHistory } from '../context/HistoryContext';
 import { PASS_THRESHOLD } from '../context/RoundContext';
@@ -40,7 +41,9 @@ export default function DayDetailScreen() {
           <BackButton />
         </View>
         <View style={styles.missingBody}>
-          <Label>No record for this day</Label>
+          <Panel style={styles.missingPanel}>
+            <Label>No record for this day</Label>
+          </Panel>
         </View>
       </SafeAreaView>
     );
@@ -90,7 +93,7 @@ export default function DayDetailScreen() {
                 </View>
                 <View style={styles.photoRowRight}>
                   <BodyText style={styles.photoScore}>{score}%</BodyText>
-                  <View style={[styles.statusDot, shotPassed ? styles.statusDotPass : styles.statusDotFail]} />
+                  <StatusDot passed={shotPassed} />
                 </View>
               </View>
             );
@@ -131,6 +134,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  missingPanel: {
+    marginHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
   },
   body: {
     flex: 1,
@@ -190,18 +198,5 @@ const styles = StyleSheet.create({
   photoScore: {
     fontFamily: fonts.primarySemiBold,
     fontSize: typeScale.value,
-  },
-  // Small, restrained status dots — the sparing pass/fail signal accent
-  // this view uses instead of the reference app's colored pill/card.
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusDotPass: {
-    backgroundColor: colors.positive,
-  },
-  statusDotFail: {
-    backgroundColor: colors.signal,
   },
 });

@@ -31,9 +31,13 @@ The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technica
 - Secondary surface: #2A2A2A
 - Text primary: #FFFFFF
 - Text muted: #8A8A8A
-- Signal accent, used extremely sparingly and only for live or alert states such as the daily countdown dot: #D71921
+- Signal accent, used extremely sparingly: #D71921. The complete list of what it's allowed to mark — nothing else:
+  - Live/alert states: the daily countdown dot, the reminder-active dot, and a pending friend-request alert dot.
+  - PASS/FAIL: the red FAIL indicator, paired with a green PASS one.
+  - The flame icon on the Progress tab (the streak symbol).
+  - The #1 spot on the friends leaderboard (rank number + left border) — signaling "you are leading," the same kind of signal as the live dot, not decoration.
 - Game color content: dynamic, driven by the target and the shot. This is the only place hues are allowed to appear.
-- A couple of other narrow, deliberate exceptions to the monochrome rule live alongside the signal accent: a green PASS indicator paired with the red FAIL one, and a warm red-orange flame icon on the Progress tab (the streak symbol) — both stay in the same restrained red/green family rather than introducing a random hue.
+- A couple of other narrow, deliberate exceptions to the monochrome rule live alongside the signal accent: the green PASS indicator above, and a warm red-orange flame icon on the Progress tab — both stay in the same restrained red/green family rather than introducing a random hue.
 
 ### Typography
 - Display type (the big score/percentage, the streak number, screen titles, and the PASS/FAIL verdict): Fugaz One, a bold rounded display face that echoes Nothing's confident numerals. The real Nothing font (Ndot) is proprietary, so do not use it.

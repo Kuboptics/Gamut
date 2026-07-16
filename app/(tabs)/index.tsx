@@ -1,6 +1,7 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Alert, Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyText } from '../../components/BodyText';
@@ -11,10 +12,12 @@ import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
+import { StatusDot } from '../../components/StatusDot';
 import { TickRule } from '../../components/TickRule';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
-import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound } from '../../context/RoundContext';
+import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound, type RoundSlots } from '../../context/RoundContext';
+import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getColorFact } from '../../lib/colorFacts';
 import { nameColor } from '../../lib/colorName';
 import { getDailyTarget } from '../../lib/dailyColor';
@@ -84,25 +87,30 @@ function SpecimenFrame({ children }: { children: ReactNode }) {
   );
 }
 
-// A row of thumbnails of the photos banked so far this round — tapping
-// one opens it larger. Empty slots (not yet submitted) are just a
-// hairline-bordered square. Never shows a score, only the photos.
-function RoundProgress({ photoUris }: { photoUris: string[] }) {
+// A row of the round's 3 slots — every tile is tappable, filled or not,
+// and always jumps to Capture for that specific slot: an empty tile
+// starts it fresh, a filled one retakes it, leaving the other two
+// slots untouched. Never shows a score, only the photos.
+function RoundProgress({ slots }: { slots: RoundSlots }) {
   const router = useRouter();
+
+  function handlePress(index: number) {
+    router.push({ pathname: '/capture', params: { slot: String(index) } });
+  }
 
   return (
     <View style={styles.progressRow}>
-      {Array.from({ length: PHOTOS_PER_ROUND }).map((_, index) => {
-        const photoUri = photoUris[index];
-        if (!photoUri) {
-          return <View key={index} style={styles.thumbnailEmpty} />;
+      {slots.map((slot, index) => {
+        if (!slot) {
+          return (
+            <PressableOpacity key={index} onPress={() => handlePress(index)}>
+              <View style={styles.thumbnailEmpty} />
+            </PressableOpacity>
+          );
         }
         return (
-          <PressableOpacity
-            key={index}
-            onPress={() => router.push({ pathname: '/photo-viewer', params: { photoUri } })}
-          >
-            <Image source={{ uri: photoUri }} style={styles.thumbnail} />
+          <PressableOpacity key={index} onPress={() => handlePress(index)}>
+            <Image source={{ uri: slot }} style={styles.thumbnail} />
           </PressableOpacity>
         );
       })}
@@ -113,9 +121,10 @@ function RoundProgress({ photoUris }: { photoUris: string[] }) {
 // A small geometric aperture/lens mark — concentric hairline rings with
 // radial tick marks, like a focus ring. A precise technical accent, not
 // an illustration, reinforcing the "instrument" feel near the capture
-// button. The outer ring and center dot are the app's one deliberate
-// red signal accent (CLAUDE.md). Capture-state only — it's about
-// focusing before a shot, so it doesn't belong in the completed state.
+// button — monochrome throughout, since it's decorative, not a signal
+// (see CLAUDE.md for the short list of what red is actually reserved
+// for). Capture-state only — it's about focusing before a shot, so it
+// doesn't belong in the completed state.
 const APERTURE_SIZE = 40;
 const APERTURE_TICK_COUNT = 8;
 
@@ -139,18 +148,13 @@ function ApertureMark() {
 }
 
 // The "Today" screen: dispatches between the pre-round capture flow and
-// the completed-day result. The result is based on HistoryContext (not
-// live RoundContext, which resets once a round is safely recorded —
-// see app/summary.tsx), EXCEPT a retake in progress always wins: the
-// player can redo today's round as many times as they want (see
-// CompletedToday's "Retake Photos"), and each finished retake replaces
-// the day's history record. `scores.length > 0` is the signal that a
-// retake is actively underway — without it, returning to this tab
-// mid-retake would show the previous completed result instead of the
-// in-progress capture flow.
+// the completed-day result, purely based on whether HistoryContext has
+// today's record yet. Once a round is submitted (see app/summary.tsx),
+// it's locked for the day — there's no way back into the capture flow
+// until tomorrow's color, so this is a plain either/or with no special
+// cases.
 export default function TodayScreen() {
   const { history } = useHistory();
-  const { scores } = useRound();
   const [countdownMs, setCountdownMs] = useState(msUntilNextMidnight());
 
   // Tick the countdown once a second — shared by both states.
@@ -162,12 +166,16 @@ export default function TodayScreen() {
   }, []);
 
   const todayRecord = history[todayKey()];
-  const isRetaking = scores.length > 0;
+  const swipeHandlers = useTabSwipe(0);
 
-  return todayRecord && !isRetaking ? (
-    <CompletedToday record={todayRecord} countdownMs={countdownMs} />
-  ) : (
-    <CaptureToday countdownMs={countdownMs} />
+  return (
+    <View style={styles.swipeArea} {...swipeHandlers}>
+      {todayRecord ? (
+        <CompletedToday record={todayRecord} countdownMs={countdownMs} />
+      ) : (
+        <CaptureToday countdownMs={countdownMs} />
+      )}
+    </View>
   );
 }
 
@@ -175,17 +183,34 @@ export default function TodayScreen() {
 // empty round through banking each of the 3 photos.
 function CaptureToday({ countdownMs }: { countdownMs: number }) {
   const router = useRouter();
-  const { scores, photoUris, isLoaded } = useRound();
+  const { slots, isLoaded } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
   const colorFact = getColorFact(target);
 
-  const bankedCount = scores.length;
+  const bankedCount = slots.filter((slot) => slot !== null).length;
   const isRoundComplete = bankedCount >= PHOTOS_PER_ROUND;
-  const primaryLabel = isRoundComplete ? 'See Results' : bankedCount === 0 ? 'Start Round' : 'Add Photo';
+  const primaryLabel = isRoundComplete ? 'Submit Round' : bankedCount === 0 ? 'Start Round' : 'Add Photo';
 
   function handlePrimaryAction() {
-    router.push(isRoundComplete ? '/summary' : '/capture');
+    Haptics.selectionAsync().catch(() => {});
+    if (isRoundComplete) {
+      // Submitting is final — there's no more retaking after this, so a
+      // brief confirmation gates the one irreversible step in the app.
+      Alert.alert(
+        'Submit Round?',
+        "You won't be able to retake any photos after this — today's result will be final.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Submit', style: 'destructive', onPress: () => router.push('/summary') },
+        ]
+      );
+      return;
+    }
+    // The linear shortcut: jump straight to the first slot that isn't
+    // filled yet, rather than making the player pick one themselves.
+    const nextEmptySlot = slots.findIndex((slot) => slot === null);
+    router.push({ pathname: '/capture', params: { slot: String(nextEmptySlot) } });
   }
 
   return (
@@ -208,9 +233,9 @@ function CaptureToday({ countdownMs }: { countdownMs: number }) {
 
         {isLoaded && (
           <>
-            <RoundProgress photoUris={photoUris} />
+            <RoundProgress slots={slots} />
             <Label style={styles.roundInfo}>
-              {bankedCount} of {PHOTOS_PER_ROUND} submitted
+              {bankedCount} of {PHOTOS_PER_ROUND} captured
             </Label>
 
             <TickRule />
@@ -225,8 +250,11 @@ function CaptureToday({ countdownMs }: { countdownMs: number }) {
   );
 }
 
-// State 2: today's round is recorded — the color, the three photos and
-// their scores, and the overall verdict, until the next drop.
+// State 2: today's round has been submitted — the color, the three
+// photos and their scores, and the overall verdict, until the next
+// drop. This is final: submitting locked the day, so tapping a photo
+// just views it larger (as any past day's photo does from Calendar) —
+// there's no retaking it anymore.
 function CompletedToday({ record, countdownMs }: { record: DayRecord; countdownMs: number }) {
   const router = useRouter();
   const colorName = nameColor(record.hue, record.saturation, record.lightness);
@@ -261,16 +289,14 @@ function CompletedToday({ record, countdownMs }: { record: DayRecord; countdownM
                 <Image source={{ uri }} style={styles.photoThumb} />
                 <View style={styles.photoScoreRow}>
                   <BodyText style={styles.photoScoreValue}>{score}%</BodyText>
-                  <View style={[styles.statusDot, shotPassed ? styles.statusDotPass : styles.statusDotFail]} />
+                  <StatusDot passed={shotPassed} />
                 </View>
               </PressableOpacity>
             );
           })}
         </View>
 
-        <TickRule />
-
-        <PrimaryButton label="Retake Photos" onPress={() => router.push('/capture')} />
+        <Label style={styles.roundInfo}>Locked until tomorrow&apos;s color</Label>
       </Panel>
     </SafeAreaView>
   );
@@ -280,6 +306,9 @@ const TICK_SIZE = 18;
 const THUMBNAIL_SIZE = 56;
 
 const styles = StyleSheet.create({
+  swipeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -409,7 +438,7 @@ const styles = StyleSheet.create({
     height: APERTURE_SIZE,
     borderRadius: APERTURE_SIZE / 2,
     borderWidth: 1,
-    borderColor: colors.signal,
+    borderColor: colors.textPrimary,
   },
   apertureInnerRing: {
     position: 'absolute',
@@ -424,7 +453,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: colors.signal,
+    backgroundColor: colors.textPrimary,
   },
   apertureTick: {
     position: 'absolute',
@@ -461,16 +490,5 @@ const styles = StyleSheet.create({
   photoScoreValue: {
     fontFamily: fonts.primarySemiBold,
     fontSize: typeScale.label,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusDotPass: {
-    backgroundColor: colors.positive,
-  },
-  statusDotFail: {
-    backgroundColor: colors.signal,
   },
 });

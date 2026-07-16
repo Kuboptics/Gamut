@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import * as Haptics from 'expo-haptics';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
 import { computeStreak, todayKey } from '../lib/streak';
@@ -36,6 +37,19 @@ export function StreakProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const currentStreak = useMemo(() => computeStreak(Object.keys(history).sort(), today), [history, today]);
+
+  // A light tap the moment the streak grows — not on every render of the
+  // same value, and not for the very first value we ever compute (that's
+  // just this account's existing streak loading in, not a fresh extend).
+  const previousStreakRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isLoaded) return;
+    const previous = previousStreakRef.current;
+    if (previous !== null && currentStreak > previous) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    previousStreakRef.current = currentStreak;
+  }, [currentStreak, isLoaded]);
 
   const value = useMemo<StreakContextValue>(() => ({ currentStreak, isLoaded }), [currentStreak, isLoaded]);
 

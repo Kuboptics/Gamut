@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '../../components/ActionButton';
 import { BodyText } from '../../components/BodyText';
 import { HeroText } from '../../components/HeroText';
+import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
@@ -16,6 +17,7 @@ import { TextField } from '../../components/TextField';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
+import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
@@ -64,6 +66,8 @@ export default function SettingsScreen() {
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
   const router = useRouter();
   const { user, isLoaded: isAuthLoaded, signOut } = useAuth();
+
+  const [showIntro, setShowIntro] = useState(false);
 
   const [displayNameInput, setDisplayNameInput] = useState('');
   const [nameLockedUntil, setNameLockedUntil] = useState<string | null>(null);
@@ -133,8 +137,10 @@ export default function SettingsScreen() {
     setTime(date.getHours(), date.getMinutes());
   }
 
+  const swipeHandlers = useTabSwipe(3);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...swipeHandlers}>
       <View style={styles.header}>
         <HeroText style={styles.title}>Settings</HeroText>
       </View>
@@ -204,12 +210,10 @@ export default function SettingsScreen() {
                 <BodyText style={styles.rowLabel}>{user.email}</BodyText>
 
                 {profileLoadError && (
-                  <View style={styles.errorRow}>
+                  <>
                     <BodyText style={styles.error}>{"Couldn't load your profile."}</BodyText>
-                    <PressableOpacity onPress={refreshProfile}>
-                      <BodyText style={styles.link}>Try Again</BodyText>
-                    </PressableOpacity>
-                  </View>
+                    <PrimaryButton label="Try Again" onPress={refreshProfile} />
+                  </>
                 )}
 
                 <TextField
@@ -253,7 +257,12 @@ export default function SettingsScreen() {
         )}
 
         <Panel style={styles.howItWorksPanel}>
-          <Label>How It Works</Label>
+          <View style={styles.howItWorksHeader}>
+            <Label>How It Works</Label>
+            <PressableOpacity onPress={() => setShowIntro(true)}>
+              <BodyText style={styles.link}>View Intro Again</BodyText>
+            </PressableOpacity>
+          </View>
 
           {HOW_IT_WORKS.map((section) => (
             <View key={section.title} style={styles.sectionRow}>
@@ -283,6 +292,8 @@ export default function SettingsScreen() {
           </View>
         </Panel>
       </ScrollView>
+
+      <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
     </SafeAreaView>
   );
 }
@@ -366,11 +377,6 @@ const styles = StyleSheet.create({
   error: {
     color: colors.signal,
   },
-  errorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   // Layout only — the surface fill/border/radius come from Panel.
   howItWorksPanel: {
     marginHorizontal: spacing.lg,
@@ -378,6 +384,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xl,
     gap: spacing.lg,
+  },
+  howItWorksHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sectionRow: {
     gap: spacing.xs,

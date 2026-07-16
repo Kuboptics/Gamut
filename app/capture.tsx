@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +8,7 @@ import { BackButton } from '../components/BackButton';
 import { BodyText } from '../components/BodyText';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { colors, fonts, radius, spacing, typeScale } from '../constants/theme';
 
 type ChoiceOptionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -32,11 +32,15 @@ function ChoiceOption({ icon, label, onPress }: ChoiceOptionProps) {
 // equal visual weight, since they're equally valid ways to add a photo.
 export default function CaptureScreen() {
   const router = useRouter();
+  // Which of the round's 3 slots this photo is for — passed straight
+  // through from wherever this screen was opened (Today's primary
+  // button, or tapping a specific slot to (re)capture just that one).
+  const { slot } = useLocalSearchParams<{ slot: string }>();
 
   function goToPreview(photoUri: string) {
     // Replace (not push) so the round's Capture <-> Preview screens
     // never pile up in the navigation stack — back always leads to Today.
-    router.replace({ pathname: '/preview', params: { photoUri } });
+    router.replace({ pathname: '/preview', params: { photoUri, slot } });
   }
 
   async function handleTakePhoto() {
@@ -92,12 +96,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     gap: spacing.lg,
   },
+  // Same surface recipe as Panel (fill + radius + hairline border) —
+  // these are content zones like anywhere else in the app, not bare
+  // outlines on the raw background.
   option: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-    borderWidth: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   optionLabel: {
