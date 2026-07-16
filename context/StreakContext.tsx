@@ -1,6 +1,7 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
-import { computeStreak } from '../lib/streak';
+import { computeStreak, todayKey } from '../lib/streak';
 import { useHistory } from './HistoryContext';
 
 type StreakContextValue = {
@@ -21,7 +22,20 @@ const StreakContext = createContext<StreakContextValue | null>(null);
 export function StreakProvider({ children }: { children: ReactNode }) {
   const { history, isLoaded } = useHistory();
 
-  const currentStreak = useMemo(() => computeStreak(Object.keys(history).sort()), [history]);
+  // computeStreak needs to know "today" to tell a live streak from one
+  // that quietly broke while the app sat closed. Re-reading it whenever
+  // the app returns to the foreground (not just when history changes)
+  // means a missed day is reflected the moment you open the app again,
+  // rather than only after your next completed round.
+  const [today, setToday] = useState(todayKey());
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setToday(todayKey());
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const currentStreak = useMemo(() => computeStreak(Object.keys(history).sort(), today), [history, today]);
 
   const value = useMemo<StreakContextValue>(() => ({ currentStreak, isLoaded }), [currentStreak, isLoaded]);
 

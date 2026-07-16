@@ -12,11 +12,33 @@ function isNextDay(dateKey: string, nextDateKey: string): boolean {
   return expected === nextDateKey;
 }
 
+// "YYYY-MM-DD" for right now, in local time — the reference point
+// computeStreak checks the most recent played day against, and what both
+// StreakContext and the leaderboard use for "did they play today".
+export function todayKey(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Counts the consecutive-day run at the end of a sorted (ascending) list
 // of "played" date keys — any day played counts, pass or fail; only a day
 // with no entry at all breaks the chain. A gap anywhere before the end
-// doesn't matter, since only the trailing run is the current streak.
-export function computeStreak(playedDateKeysAscending: string[]): number {
+// doesn't matter, since only the trailing run is the current streak —
+// *provided* that trailing run is still current: if the most recent played
+// day is older than yesterday, a full day was skipped since then, so the
+// streak is broken (0) no matter how long the run before it was. Without
+// this check a streak earned days ago would silently freeze forever
+// instead of resetting once a day gets missed.
+export function computeStreak(playedDateKeysAscending: string[], today: string = todayKey()): number {
+  if (playedDateKeysAscending.length === 0) return 0;
+
+  const lastPlayed = playedDateKeysAscending[playedDateKeysAscending.length - 1];
+  const isStillCurrent = lastPlayed === today || isNextDay(lastPlayed, today);
+  if (!isStillCurrent) return 0;
+
   let streak = 0;
   let lastPlayedDateKey: string | null = null;
   for (const dateKey of playedDateKeysAscending) {

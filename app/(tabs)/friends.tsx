@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyText } from '../../components/BodyText';
 import { FlameIcon } from '../../components/FlameIcon';
+import { FriendThumbnails } from '../../components/FriendThumbnails';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
@@ -142,6 +143,7 @@ function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }
           <View>
             <BodyText style={styles.leaderName}>{isYou ? 'You' : entry.displayName}</BodyText>
             <Label>{todayStatusLabel(entry)}</Label>
+            {entry.playedToday && <FriendThumbnails urls={entry.thumbnailUrls} style={styles.thumbnails} />}
           </View>
         </View>
         <View style={styles.streakGroup}>
@@ -161,6 +163,7 @@ function RankRow({ entry, rank, isYou }: { entry: LeaderboardEntry; rank: number
         <View>
           <BodyText style={styles.rowLabel}>{isYou ? 'You' : entry.displayName}</BodyText>
           <Label>{todayStatusLabel(entry)}</Label>
+          {entry.playedToday && <FriendThumbnails urls={entry.thumbnailUrls} style={styles.thumbnails} />}
         </View>
       </View>
       <View style={styles.streakGroup}>
@@ -260,6 +263,9 @@ const styles = StyleSheet.create({
   leaderName: {
     fontFamily: fonts.primarySemiBold,
     fontSize: typeScale.value,
+  },
+  thumbnails: {
+    marginTop: spacing.xs,
   },
   streakGroup: {
     flexDirection: 'row',

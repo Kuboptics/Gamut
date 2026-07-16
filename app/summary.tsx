@@ -44,7 +44,7 @@ export default function SummaryScreen() {
   const router = useRouter();
   const { scores, photoUris, resetRound } = useRound();
   const { recordDay } = useHistory();
-  const { pushRecord } = useSync();
+  const { pushRecord, pushThumbnails } = useSync();
   const target = getDailyTarget();
 
   const average = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
@@ -73,7 +73,19 @@ export default function SummaryScreen() {
       photoUris,
     });
     pushRecord(dateKey, stored);
-  }, [passed, recordDay, pushRecord, target.hex, target.hue, target.saturation, target.lightness, scores, photoUris]);
+    pushThumbnails(photoUris);
+  }, [
+    passed,
+    recordDay,
+    pushRecord,
+    pushThumbnails,
+    target.hex,
+    target.hue,
+    target.saturation,
+    target.lightness,
+    scores,
+    photoUris,
+  ]);
 
   // The average counts up from 0 rather than snapping straight to its
   // final value — a plain requestAnimationFrame loop driving React

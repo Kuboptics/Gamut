@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import { useAuth } from './AuthContext';
 import { useHistory, type DayRecord } from './HistoryContext';
 import { fetchCloudHistory, pickRecordsNewerOrEqual, upsertCloudRecords } from '../lib/historySync';
+import { uploadThumbnails } from '../lib/thumbnails';
 
 type SyncContextValue = {
   // Fire-and-forget upload for one day's record, called right after
@@ -12,6 +13,13 @@ type SyncContextValue = {
   // or offline — local storage already has the real, authoritative copy
   // either way.
   pushRecord: (dateKey: string, record: DayRecord) => void;
+  // Fire-and-forget upload of a round's 3 shots as small thumbnails, for
+  // the friends leaderboard. Same no-op-when-signed-out/offline shape as
+  // pushRecord, but with no retry-on-reconnect: thumbnails are purely
+  // supplementary, so a missed upload just means friends don't see
+  // squares for today, and it self-heals the next time this account
+  // plays (see lib/thumbnails.ts for why that's an acceptable tradeoff).
+  pushThumbnails: (photoUris: string[]) => void;
 };
 
 const SyncContext = createContext<SyncContextValue | null>(null);
@@ -76,6 +84,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           // Offline/failed — the record is already correct locally, and
           // it's the newest copy for that day, so the next sync pass will
           // pick it up and upload it then.
+        });
+      },
+      pushThumbnails: (photoUris) => {
+        if (!userId) return;
+        uploadThumbnails(userId, photoUris).catch(() => {
+          // Offline/failed — no retry. See the type's doc comment above.
         });
       },
     }),

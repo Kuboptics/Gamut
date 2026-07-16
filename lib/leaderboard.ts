@@ -1,7 +1,9 @@
 // Builds the friends leaderboard/feed from `round_results`.
 
-import { computeStreak } from './streak';
+import { PHOTOS_PER_ROUND } from '../context/RoundContext';
+import { computeStreak, todayKey } from './streak';
 import { supabase } from './supabase';
+import { fetchThumbnailUrls, thumbnailPath } from './thumbnails';
 
 export type LeaderboardEntry = {
   userId: string;
@@ -11,20 +13,17 @@ export type LeaderboardEntry = {
   // Null when `playedToday` is false — there's no score to show yet.
   todayAverage: number | null;
   passedToday: boolean;
+  // Empty when `playedToday` is false, or when a thumbnail failed to
+  // resolve (e.g. this account hasn't uploaded one for a slot yet) —
+  // never a reason to fail the whole row.
+  thumbnailUrls: string[];
 };
-
-function todayKey(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 // One entry per id in `[userId, ...friendIds]`. Relies on round_results'
 // RLS (own rows + accepted friends' rows) to make the `.in(...)` query
 // safe even if the id list were ever wrong — a stranger's rows just
-// wouldn't come back.
+// wouldn't come back. Same reasoning applies to the thumbnails bucket's
+// own RLS for the signed-URL fetch below.
 export async function fetchLeaderboard(userId: string, friendIds: string[]): Promise<LeaderboardEntry[]> {
   const allIds = [userId, ...friendIds];
 
@@ -44,7 +43,7 @@ export async function fetchLeaderboard(userId: string, friendIds: string[]): Pro
   }
 
   const today = todayKey();
-  return allIds.map((id) => {
+  const entriesWithoutThumbnails = allIds.map((id) => {
     const rows = (roundsByUserId.get(id) ?? []).slice().sort((a, b) => a.date_key.localeCompare(b.date_key));
     // Streak is activity-based: any played day counts, pass or fail —
     // see lib/streak.ts, the same rule StreakContext applies locally.
@@ -54,11 +53,28 @@ export async function fetchLeaderboard(userId: string, friendIds: string[]): Pro
     return {
       userId: id,
       displayName: nameById.get(id) ?? 'Player',
-      streak: computeStreak(playedDateKeys),
+      streak: computeStreak(playedDateKeys, today),
       playedToday: !!todayRow,
       todayAverage: todayRow?.average ?? null,
       passedToday: todayRow?.outcome === 'passed',
     };
+  });
+
+  // Only fetch thumbnails for people who actually played today — nobody
+  // else has anything current to show (see lib/thumbnails.ts for why a
+  // stale file from an earlier day is never a concern here).
+  const playedTodayIds = entriesWithoutThumbnails.filter((entry) => entry.playedToday).map((entry) => entry.userId);
+  const paths = playedTodayIds.flatMap((id) =>
+    Array.from({ length: PHOTOS_PER_ROUND }, (_, slot) => thumbnailPath(id, slot))
+  );
+  const urlByPath = await fetchThumbnailUrls(paths);
+
+  return entriesWithoutThumbnails.map((entry) => {
+    if (!entry.playedToday) return { ...entry, thumbnailUrls: [] };
+    const thumbnailUrls = Array.from({ length: PHOTOS_PER_ROUND }, (_, slot) =>
+      urlByPath.get(thumbnailPath(entry.userId, slot))
+    ).filter((url): url is string => !!url);
+    return { ...entry, thumbnailUrls };
   });
 }
 
