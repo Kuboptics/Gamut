@@ -20,6 +20,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 
 
 import { motionDuration, motionEasing } from '../constants/motion';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { useOverlay } from '../context/OverlayContext';
 import { PASS_THRESHOLD } from '../context/RoundContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { LeaderboardEntry } from '../lib/leaderboard';
@@ -79,6 +80,7 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { setOverlayOpen } = useOverlay();
 
   // Kept independent of `entry` so the last-open friend's photos stay on
   // screen while the close fade plays, instead of the content vanishing
@@ -93,6 +95,7 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
     setRenderedEntry(entry);
     setPageIndex(positionForSlot(entry, initialIndex));
     setModalVisible(true);
+    setOverlayOpen(true);
     opacity.value = reducedMotion ? 1 : withTiming(1, { duration: motionDuration.base, easing: motionEasing });
     Haptics.selectionAsync().catch(() => {});
     // Fires only when a new entry opens the viewer, not on every parent
@@ -102,8 +105,17 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry]);
 
+  // A safety net independent of finishClose below: if this component ever
+  // unmounts while the viewer was open (e.g. the Friends screen itself
+  // unmounts) rather than closing through its own close path, the flag
+  // still can't get stuck true.
+  useEffect(() => {
+    return () => setOverlayOpen(false);
+  }, [setOverlayOpen]);
+
   function finishClose() {
     setModalVisible(false);
+    setOverlayOpen(false);
     onClose();
   }
 

@@ -10,6 +10,7 @@ import { motionDuration } from '../constants/motion';
 import { colors } from '../constants/theme';
 import { AuthProvider } from '../context/AuthContext';
 import { HistoryProvider } from '../context/HistoryContext';
+import { OverlayProvider } from '../context/OverlayContext';
 import { ReminderProvider } from '../context/ReminderContext';
 import { RoundProvider } from '../context/RoundContext';
 import { StreakProvider } from '../context/StreakContext';
@@ -51,27 +52,29 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RoundProvider>
-        <HistoryProvider>
-          <StreakProvider>
-            <ReminderProvider>
-              <SyncProvider>
-                <StatusBar style="light" />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: colors.background },
-                    animation: reducedMotion ? 'none' : 'fade',
-                    animationDuration: motionDuration.base,
-                  }}
-                />
-                <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
-              </SyncProvider>
-            </ReminderProvider>
-          </StreakProvider>
-        </HistoryProvider>
-      </RoundProvider>
-    </AuthProvider>
+    <OverlayProvider>
+      <AuthProvider>
+        <RoundProvider>
+          <HistoryProvider>
+            <StreakProvider>
+              <ReminderProvider>
+                <SyncProvider>
+                  <StatusBar style="light" />
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      contentStyle: { backgroundColor: colors.background },
+                      animation: reducedMotion ? 'none' : 'fade',
+                      animationDuration: motionDuration.base,
+                    }}
+                  />
+                  <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
+                </SyncProvider>
+              </ReminderProvider>
+            </StreakProvider>
+          </HistoryProvider>
+        </RoundProvider>
+      </AuthProvider>
+    </OverlayProvider>
   );
 }

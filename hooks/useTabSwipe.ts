@@ -3,6 +3,8 @@ import { useRouter } from 'expo-router';
 import { useRef } from 'react';
 import { PanResponder, type GestureResponderEvent, type PanResponderGestureState } from 'react-native';
 
+import { useOverlay } from '../context/OverlayContext';
+
 // The 4 bottom tabs, in the same order as their Tabs.Screen entries in
 // app/(tabs)/_layout.tsx — index into this array is what each screen
 // passes as `currentIndex`.
@@ -32,15 +34,27 @@ function isHorizontalDrag(gesture: PanResponderGestureState): boolean {
 // never overlap. onMoveShouldSetPanResponder only claims the gesture
 // once a drag is clearly horizontal, so ordinary taps and each screen's
 // own vertical ScrollView both keep working untouched.
+//
+// Also checks OverlayContext (see context/OverlayContext.tsx) and never
+// claims a gesture while any modal/overlay is open — e.g. the Friends
+// tab's PhotoViewerModal, whose own horizontal swipe (paging between
+// photos) would otherwise fight this tab-root screen's swipe underneath
+// it. Read through a ref rather than closed over directly: the
+// PanResponder below is created once via useRef and its callbacks would
+// otherwise keep seeing whatever isOverlayOpen was on that first render.
 export function useTabSwipe(currentIndex: number) {
   const router = useRouter();
+  const { isOverlayOpen } = useOverlay();
+  const isOverlayOpenRef = useRef(isOverlayOpen);
+  isOverlayOpenRef.current = isOverlayOpen;
 
   return useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_event: GestureResponderEvent, gesture: PanResponderGestureState) =>
-        isHorizontalDrag(gesture),
+        !isOverlayOpenRef.current && isHorizontalDrag(gesture),
       onPanResponderRelease: (_event: GestureResponderEvent, gesture: PanResponderGestureState) => {
+        if (isOverlayOpenRef.current) return;
         if (Math.abs(gesture.dx) < SWIPE_DISTANCE_THRESHOLD) return;
 
         // Swiping left (negative dx) moves forward a tab, right moves back
