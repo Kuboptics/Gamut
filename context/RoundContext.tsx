@@ -196,14 +196,37 @@ export function RoundProvider({ children }: { children: ReactNode }) {
       slots,
       isLoaded,
       setSlot: (index: number, temporaryPhotoUri: string) => {
-        const permanentUri = copyToPermanentStorage(temporaryPhotoUri);
-        const previous = slots[index];
-        const nextSlots = slots.slice();
-        nextSlots[index] = permanentUri;
-        setSlots(nextSlots);
-        // Only after the new photo is safely copied and slotted in —
-        // never leaves a slot pointing at a deleted file.
-        if (previous) deletePhotoFiles([previous]);
+        // A bad index (e.g. NaN from a dropped route param) must never
+        // silently no-op — nextSlots[NaN] = uri would leave every real
+        // slot untouched with no sign anything went wrong. Throw instead
+        // so the caller (see app/preview.tsx) can surface it.
+        if (!Number.isInteger(index) || index < 0 || index >= PHOTOS_PER_ROUND) {
+          throw new Error(`setSlot: received an invalid slot index (${index})`);
+        }
+
+        // If the copy throws, the slot must not be marked filled — bail
+        // out before touching state at all.
+        let permanentUri: string;
+        try {
+          permanentUri = copyToPermanentStorage(temporaryPhotoUri);
+        } catch (error) {
+          throw new Error(
+            `setSlot: could not save the photo (${error instanceof Error ? error.message : String(error)})`
+          );
+        }
+
+        // Functional updater, not a closure over the outer `slots` — so
+        // two setSlot calls firing before a re-render can't clobber each
+        // other off a stale snapshot.
+        setSlots((prev) => {
+          const previous = prev[index];
+          const nextSlots = prev.slice();
+          nextSlots[index] = permanentUri;
+          // Only after the new photo is safely copied and slotted in —
+          // never leaves a slot pointing at a deleted file.
+          if (previous) deletePhotoFiles([previous]);
+          return nextSlots;
+        });
       },
       resetRound,
     }),

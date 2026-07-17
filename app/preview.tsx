@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { Alert, Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '../components/BackButton';
@@ -25,12 +26,41 @@ export default function PreviewScreen() {
   const params = useLocalSearchParams<{ photoUri: string; slot: string }>();
   const router = useRouter();
   const { setSlot } = useRound();
-  const slotIndex = Number(params.slot);
+
+  const parsedSlot = Number(params.slot);
+  const isValidSlot = Number.isInteger(parsedSlot) && parsedSlot >= 0 && parsedSlot < PHOTOS_PER_ROUND;
+
+  // Guards against ever landing here without a real slot to write to — a
+  // route param dropped somewhere upstream, a stale deep link, anything.
+  // A bad slot index used to silently no-op instead of banking the photo;
+  // now it bounces back to Today with a clear message instead.
+  useEffect(() => {
+    if (isValidSlot) return;
+    Alert.alert('Photo Not Saved', "Something went wrong placing that photo. Please try again.", [
+      { text: 'OK', onPress: () => router.replace('/') },
+    ]);
+  }, [isValidSlot, router]);
+
+  if (!isValidSlot) {
+    return <SafeAreaView style={styles.container} />;
+  }
+
+  const slotIndex = parsedSlot;
   const framingTip = FRAMING_TIPS[slotIndex % FRAMING_TIPS.length];
 
   function handleKeep() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setSlot(slotIndex, params.photoUri);
+    try {
+      setSlot(slotIndex, params.photoUri);
+    } catch (error) {
+      // setSlot throws instead of silently no-op'ing on a bad index or a
+      // failed file copy (see RoundContext.tsx) — surface it rather than
+      // letting it escape as an uncaught exception, and stay on this
+      // screen so the player can retry Keep or Retake.
+      console.error('setSlot failed:', error);
+      Alert.alert('Photo Not Saved', "That photo couldn't be saved. Please try again.");
+      return;
+    }
     // Replace (not push), matching capture.tsx, so the round's screens
     // never pile up in the navigation stack. Always back to Today —
     // filling the last slot no longer auto-advances anywhere; Submit
@@ -39,7 +69,12 @@ export default function PreviewScreen() {
   }
 
   function handleRetake() {
-    router.replace('/capture');
+    // Forward the slot param exactly as capture.tsx forwards it to
+    // preview.tsx. Dropping it here was the original bug: capture.tsx
+    // would read back slot: undefined, and the photo would silently fail
+    // to land in any slot on the next Keep. Works for any number of
+    // Retakes in a row since each hop forwards whatever it received.
+    router.replace({ pathname: '/capture', params: { slot: params.slot } });
   }
 
   return (
