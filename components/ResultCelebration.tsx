@@ -37,18 +37,13 @@ const PARTICLE_COLORS = [
 
 type ResultCelebrationProps = {
   passed: boolean;
-  // Fires the burst/shake the moment this becomes true, rather than on
-  // mount — the verdict this wraps stays mounted (invisible) well before
-  // the reveal actually happens (see app/summary.tsx), so "on mount"
-  // would fire the celebration while nobody can see it yet.
-  active: boolean;
   children: ReactNode;
 };
 
 // A restrained, fast result cue wrapped around the Round Result verdict:
 // a quick radial particle burst on PASS, a brief shake on FAIL. Both are
 // skipped entirely when the OS "Reduce Motion" setting is on.
-export function ResultCelebration({ passed, active, children }: ResultCelebrationProps) {
+export function ResultCelebration({ passed, children }: ResultCelebrationProps) {
   const reducedMotion = useReducedMotion();
 
   // One shared value drives every particle (see Particle below) instead
@@ -71,7 +66,7 @@ export function ResultCelebration({ passed, active, children }: ResultCelebratio
   );
 
   useEffect(() => {
-    if (!active || reducedMotion) return;
+    if (reducedMotion) return;
 
     if (passed) {
       progress.value = withTiming(1, { duration: BURST_DURATION_MS, easing: motionEasing });
@@ -83,10 +78,10 @@ export function ResultCelebration({ passed, active, children }: ResultCelebratio
         withTiming(0, { duration: SHAKE_STEP_MS, easing: motionEasing })
       );
     }
-    // Fires once, the moment `active` turns true — not on every render,
-    // and not if `passed` were ever to change under this screen.
+    // Fires once, the moment the result is revealed — not on every
+    // render, and not if `passed` were ever to change under this screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, []);
 
   const shakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeX.value }],
