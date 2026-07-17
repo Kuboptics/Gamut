@@ -172,12 +172,19 @@ export function RoundProvider({ children }: { children: ReactNode }) {
 
   // If the app is left open across local midnight, today's target color
   // changes underneath the round — check periodically and reset if so.
+  // Always keeps the photo files: if the round was already submitted (see
+  // app/summary.tsx), `slots` still holds the same photo URIs the history
+  // record for that day now permanently points to — deleting them here
+  // would silently break that day's Calendar/day-detail thumbnails even
+  // though the record itself looks fine. An abandoned, never-submitted
+  // round's photos leak a few small files on disk instead, which is a far
+  // smaller cost than corrupting saved history.
   useEffect(() => {
     const interval = setInterval(() => {
       const key = todayKey();
       if (key !== dateKey) {
         setDateKey(key);
-        resetRound();
+        resetRound({ keepPhotos: true });
       }
     }, DAY_CHECK_INTERVAL_MS);
     return () => clearInterval(interval);
