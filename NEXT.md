@@ -9,6 +9,7 @@ Everything below is **local to this worktree branch** (`worktree-vectorized-jump
 - `assets/images/icon.png` — alpha channel stripped, same 1024×1024 artwork (commit `65971c2`)
 
 **What's committed and is plain JS/asset-level** (would ship fine via `eas update`, no rebuild required):
+- Today screen swatch-overflow fix — the specimen swatch was a fixed 220x220 box that visually overflowed onto the header (wordmark/countdown) on short phones like the iPhone SE, since its card had no clipping. Now sized via `aspectRatio: 1` + `height: '100%'` + `maxWidth: '100%'` inside a `flex: 1` container, with `overflow: 'hidden'` on the card as a safety net (commit `8b68279`). **Not yet verified visually** — I have no macOS/Xcode access in this environment (Windows, no `xcrun`), so this was reasoned through against Yoga's aspect-ratio-clamping behavior (RN 0.81 / new Yoga), not observed rendering. Confirm on a real iPhone SE (or the smallest iOS Simulator) via Expo Go before trusting it.
 - System-font migration, the leaderboard photo viewer, and the 1080px/0.85-quality photo upload (commit `42480fe`)
 - Medal colors + StatusDot on the leaderboard (commit `1b1e974`)
 - Display-name cooldown removal + `removeFriend` (commit `7c323c4`)
@@ -41,6 +42,10 @@ eas submit --profile production --platform ios
 
 ## Other things I know are unfinished or fragile, not listed above
 
+- The Today-screen swatch-overflow fix above only touched Today (`app/(tabs)/index.tsx`, `components/ColorSwatch.tsx`) — the two named "other potential issues" to still audit for the same short-screen-overflow pattern once verified on-device:
+  - Progress and Friends were checked and *don't* have the same bug — their fixed pixel sizes (24-56px tiles/thumbnails, 32px buttons) are small chrome, not screen-scale boxes, and both screens are `ScrollView`s so oversized content scrolls rather than overlaps. Worth a second look on an actual small device anyway, since this was reasoned through statically, not observed.
+  - `day-detail.tsx` uses `ColorSwatch size="small"` (fixed 130x130, untouched by this fix) and wasn't in scope for this pass — check it renders fine on a short screen too, since it's a similar specimen-style layout to Today.
+  - `PhotoViewerModal.tsx` has its own separate fixed `SWATCH_SIZE` (not the shared `ColorSwatch` component) — not audited at all yet.
 - `PhotoViewerModal`'s swipe-to-dismiss (a `PanResponder` claiming near-vertical drags) sits alongside the horizontal paging `FlatList`'s own gesture handling. This is the same "claim narrowly, let native scroll handle the rest" pattern `useTabSwipe.ts` uses, but the two haven't actually been tried together on a device — this is the part most likely to feel wrong in practice even though it type-checks.
 - The leaderboard row's `lineHeight: 32` (for the Fugaz One rank numeral) and `minHeight: 56` (the row floor) are both reasoned guesses at Fugaz One's actual rendered metrics, not measurements taken from a real render. Worth a visual check once you're on-device.
 - `expo-updates` is a `package.json` dependency and `app.json` has a top-level `updates` block, but `expo-updates` is **not** listed in `app.json`'s `plugins` array. This is likely fine for a default setup, but I haven't confirmed it against your actual EAS Update behavior.
