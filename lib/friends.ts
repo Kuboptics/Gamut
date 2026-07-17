@@ -24,9 +24,6 @@ export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
 export type Profile = {
   friendCode: string;
   displayName: string;
-  // Null unless a display-name cooldown (see updateDisplayName) is
-  // currently active.
-  displayNameLockedUntil: string | null;
 };
 
 export type IncomingRequest = {
@@ -62,23 +59,19 @@ export async function ensureProfile(userId: string, fallbackDisplayName: string)
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: existing, error: selectError } = await supabase
       .from('profiles')
-      .select('friend_code, display_name, display_name_locked_until')
+      .select('friend_code, display_name')
       .eq('id', userId)
       .maybeSingle();
     if (selectError) throw selectError;
     if (existing) {
-      return {
-        friendCode: existing.friend_code,
-        displayName: existing.display_name,
-        displayNameLockedUntil: existing.display_name_locked_until,
-      };
+      return { friendCode: existing.friend_code, displayName: existing.display_name };
     }
 
     const code = generateCode();
     const { error: insertError } = await supabase
       .from('profiles')
       .insert({ id: userId, friend_code: code, display_name: fallbackDisplayName });
-    if (!insertError) return { friendCode: code, displayName: fallbackDisplayName, displayNameLockedUntil: null };
+    if (!insertError) return { friendCode: code, displayName: fallbackDisplayName };
     if (insertError.code !== UNIQUE_VIOLATION) throw insertError;
     // A duplicate-key error here means either a concurrent call already
     // created this profile (a violation on the *id* primary key — the
@@ -90,50 +83,10 @@ export async function ensureProfile(userId: string, fallbackDisplayName: string)
   throw new Error('Could not create or load your profile. Try again.');
 }
 
-const MAX_FREE_NAME_CHANGES = 2;
-const NAME_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-
-export type UpdateDisplayNameResult = { ok: true } | { ok: false; lockedUntil: string };
-
-// Enforced using columns stored on the profile row itself (not local
-// state), so the cooldown survives reinstalls or a second device — though
-// it's only as tamper-proof as the app calling it honestly; a real attack
-// would need a database-side check (e.g. a trigger), which felt like
-// more machinery than this stage needs. Allows 2 free changes, then locks
-// further edits for 7 days; once a lock expires, the next change starts a
-// fresh 2-change window.
-export async function updateDisplayName(userId: string, displayName: string): Promise<UpdateDisplayNameResult> {
-  const { data: profile, error: selectError } = await supabase
-    .from('profiles')
-    .select('display_name_change_count, display_name_locked_until')
-    .eq('id', userId)
-    .maybeSingle();
-  if (selectError) throw selectError;
-  if (!profile) throw new Error('Profile not found.');
-
-  const now = Date.now();
-  const lockedUntil = profile.display_name_locked_until ? new Date(profile.display_name_locked_until).getTime() : null;
-  if (lockedUntil !== null && now < lockedUntil) {
-    return { ok: false, lockedUntil: profile.display_name_locked_until };
-  }
-
-  // No active lock: either this account has never hit the limit, or a
-  // previous lock just expired — either way this change starts (or
-  // continues) a fresh window.
-  const wasLockExpired = lockedUntil !== null && now >= lockedUntil;
-  const nextCount = wasLockExpired ? 1 : profile.display_name_change_count + 1;
-  const nextLockedUntil = nextCount >= MAX_FREE_NAME_CHANGES ? new Date(now + NAME_CHANGE_COOLDOWN_MS).toISOString() : null;
-
-  const { error: updateError } = await supabase
-    .from('profiles')
-    .update({
-      display_name: displayName,
-      display_name_change_count: nextCount,
-      display_name_locked_until: nextLockedUntil,
-    })
-    .eq('id', userId);
-  if (updateError) throw updateError;
-  return { ok: true };
+// Names can be changed as often as the player likes — no cooldown.
+export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ display_name: displayName }).eq('id', userId);
+  if (error) throw error;
 }
 
 async function lookupUserIdByCode(code: string): Promise<string | null> {
@@ -276,4 +229,26 @@ export async function fetchFriends(userId: string): Promise<Friend[]> {
     const friendId = row.sender_id === userId ? row.receiver_id : row.sender_id;
     return { id: row.id, userId: friendId, displayName: nameById.get(friendId) ?? 'Player' };
   });
+}
+
+// Ends a friendship by deleting its one shared friend_requests row — see
+// fetchFriends above for why there's only ever one row per pair, not a
+// mirrored row per side. Deleting it is enough to remove the friendship
+// for both people at once (both stop appearing on each other's leaderboard,
+// since fetchLeaderboard's friend list comes from this same query).
+//
+// Chained with .select('id') so we get back the row(s) Postgres actually
+// deleted. This matters because RLS doesn't turn a denied delete into an
+// error: a DELETE with no matching policy just filters the target row out
+// of view, so Postgres reports "deleted 0 rows" with no error at all — the
+// call looks identical to a real success unless the affected-row count is
+// checked. Treating an empty result as a failure is the only way to catch
+// that silently-denied case (see the profiles/friend_requests RLS bugs
+// from earlier stages — same class of issue).
+export async function removeFriend(requestId: string): Promise<void> {
+  const { data, error } = await supabase.from('friend_requests').delete().eq('id', requestId).select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("That friendship couldn't be removed — it may already be gone, or you may not have permission.");
+  }
 }
