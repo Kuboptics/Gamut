@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Image, StyleSheet, View } from 'react-native';
+import { Alert, Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyText } from '../../components/BodyText';
@@ -19,6 +19,7 @@ import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound, type RoundSlots } from '../../context/RoundContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
+import { wcagContrastTextColor } from '../../lib/color';
 import { getColorFact } from '../../lib/colorFacts';
 import { nameColor } from '../../lib/colorName';
 import { getDailyTarget } from '../../lib/dailyColor';
@@ -73,17 +74,89 @@ function TopBar({ countdownMs }: { countdownMs: number }) {
   );
 }
 
-// Frames a child with four corner brackets, like a specimen slide or a
-// viewfinder — the "signature moment" treatment CLAUDE.md asks for
-// around today's target color.
-function SpecimenFrame({ children }: { children: ReactNode }) {
+// How far the brackets sit outside the swatch's own edges — the wrapper
+// below is always exactly this much bigger than the swatch, on every
+// side, so the brackets can never overlap the swatch or float away from
+// it (unlike a flex-grown wrapper, which can end up far larger than the
+// swatch it's meant to frame).
+const BRACKET_INSET = spacing.xl;
+
+// The card's own breathing room around its content (the bracket-wrapper
+// plus the footer text below it) — keeps the card's border away from the
+// brackets, the same way BRACKET_INSET keeps the brackets away from the
+// swatch. Also the single gap between the bracket-wrapper and the footer.
+const CARD_PADDING = spacing.lg;
+const CARD_GAP = spacing.lg;
+
+// The card housing today's target color — the corner-bracket "specimen
+// slide" treatment CLAUDE.md asks for. Sized to fit its content exactly
+// (no flex growth, no fixed height) and centered in whatever vertical
+// room is actually available above the controls panel. Measures that
+// available room, and the footer's own rendered height, via onLayout
+// (never a fixed pixel value or module-scope Dimensions), then computes
+// an exact pixel size for the bracket-wrapper — whichever of available
+// width/height is smaller — so the swatch inside it shrinks to fit on
+// short screens without ever growing past the wrapper, and therefore
+// never past the brackets either.
+function SpecimenCard({ hex, colorName, footer }: { hex: string; colorName: string; footer: ReactNode }) {
+  const [available, setAvailable] = useState({ width: 0, height: 0 });
+  const [footerHeight, setFooterHeight] = useState(0);
+
+  function handleAreaLayout(event: LayoutChangeEvent) {
+    const { width, height } = event.nativeEvent.layout;
+    setAvailable({ width, height });
+  }
+
+  function handleFooterLayout(event: LayoutChangeEvent) {
+    setFooterHeight(event.nativeEvent.layout.height);
+  }
+
+  const verticalChrome = CARD_PADDING * 2 + CARD_GAP;
+  const horizontalChrome = CARD_PADDING * 2;
+  const wrapperSize = Math.max(
+    0,
+    Math.min(available.width - horizontalChrome, available.height - verticalChrome - footerHeight)
+  );
+  const swatchSize = Math.max(0, wrapperSize - BRACKET_INSET * 2);
+
   return (
-    <View style={styles.specimenFrame}>
-      <View style={[styles.tick, styles.tickTL]} />
-      <View style={[styles.tick, styles.tickTR]} />
-      <View style={[styles.tick, styles.tickBL]} />
-      <View style={[styles.tick, styles.tickBR]} />
-      {children}
+    <View style={styles.specimenArea} onLayout={handleAreaLayout}>
+      <Panel style={styles.specimenPanel}>
+        <View style={[styles.bracketWrapper, { width: wrapperSize, height: wrapperSize }]}>
+          <View style={[styles.tick, styles.tickTL]} />
+          <View style={[styles.tick, styles.tickTR]} />
+          <View style={[styles.tick, styles.tickBL]} />
+          <View style={[styles.tick, styles.tickBR]} />
+          <View style={[styles.swatchSlot, { width: swatchSize, height: swatchSize }]}>
+            <ColorSwatch hex={hex} size="large">
+              <SwatchLabel name={colorName} hex={hex} />
+            </ColorSwatch>
+          </View>
+        </View>
+        <View onLayout={handleFooterLayout}>{footer}</View>
+      </Panel>
+    </View>
+  );
+}
+
+// The color name and hex, centered on the swatch itself. Name above, in
+// Label's existing uppercase/tracked treatment but at a much larger size
+// and bold weight — it's the focal point of the screen now. Hex below,
+// in ReadoutText's existing tabular treatment, increased proportionally
+// but still clearly secondary (smaller, dimmer). Both use the WCAG-
+// luminance contrast flip (not a fixed color) since they sit directly on
+// an arbitrary fill, not on black, and both shrink to fit rather than
+// overflow on a long name or a narrow screen.
+function SwatchLabel({ name, hex }: { name: string; hex: string }) {
+  const textColor = wcagContrastTextColor(hex);
+  return (
+    <View style={styles.swatchLabel} pointerEvents="none">
+      <Label style={[styles.swatchLabelName, { color: textColor }]} numberOfLines={1} adjustsFontSizeToFit>
+        {name}
+      </Label>
+      <ReadoutText style={[styles.swatchLabelHex, { color: textColor }]} numberOfLines={1} adjustsFontSizeToFit>
+        {hex}
+      </ReadoutText>
     </View>
   );
 }
@@ -218,16 +291,15 @@ function CaptureToday({ countdownMs }: { countdownMs: number }) {
     <SafeAreaView style={styles.container}>
       <TopBar countdownMs={countdownMs} />
 
-      <Panel style={styles.specimenPanel}>
-        <SpecimenFrame>
-          <ColorSwatch hex={target.hex} size="large" />
-        </SpecimenFrame>
-        <ReadoutText style={styles.specimenHex}>{target.hex}</ReadoutText>
-        <Label>{colorName}</Label>
-        <BodyText style={styles.colorFact} numberOfLines={2}>
-          {colorFact}
-        </BodyText>
-      </Panel>
+      <SpecimenCard
+        hex={target.hex}
+        colorName={colorName}
+        footer={
+          <BodyText style={styles.colorFact} numberOfLines={2}>
+            {colorFact}
+          </BodyText>
+        }
+      />
 
       <Panel style={styles.controlsPanel}>
         {!isLoaded && <Label style={styles.roundInfo}>Loading…</Label>}
@@ -265,16 +337,15 @@ function CompletedToday({ record, countdownMs }: { record: DayRecord; countdownM
     <SafeAreaView style={styles.container}>
       <TopBar countdownMs={countdownMs} />
 
-      <Panel style={styles.specimenPanel}>
-        <SpecimenFrame>
-          <ColorSwatch hex={record.hex} size="large" />
-        </SpecimenFrame>
-        <ReadoutText style={styles.specimenHex}>{record.hex}</ReadoutText>
-        <Label>{colorName}</Label>
-        <HeroText style={[styles.verdict, passed ? styles.verdictPass : styles.verdictFail]}>
-          {passed ? 'PASS' : 'FAIL'}
-        </HeroText>
-      </Panel>
+      <SpecimenCard
+        hex={record.hex}
+        colorName={colorName}
+        footer={
+          <HeroText style={[styles.verdict, passed ? styles.verdictPass : styles.verdictFail]}>
+            {passed ? 'PASS' : 'FAIL'}
+          </HeroText>
+        }
+      />
 
       <Panel style={styles.controlsPanel}>
         <Label style={styles.breakdownHeader}>Breakdown</Label>
@@ -361,30 +432,73 @@ const styles = StyleSheet.create({
     fontSize: typeScale.value,
     textAlign: 'right',
   },
-  // Layout only — the surface fill/border/radius now come from Panel.
-  // overflow: 'hidden' is a safety net: if the swatch below ever miscalculates
-  // its size, it gets visibly clipped to this card instead of covering the
-  // header above it.
-  specimenPanel: {
+  // The flex:1 measuring area between TopBar and controlsPanel — plain,
+  // no surface/border of its own. SpecimenCard measures this via onLayout
+  // to know how much room the card actually has, then centers the
+  // card (sized to its own content, see specimenPanel below) inside it —
+  // any leftover space here is neutral background, not dead space inside
+  // the visible card.
+  specimenArea: {
     flex: 1,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
-    alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The visible card: sized by its content (bracket-wrapper + footer),
+  // not flex-grown and not a fixed height — CARD_PADDING is its own
+  // breathing room, CARD_GAP the single gap before the footer. Width
+  // still spans specimenArea's full (already-margined) width, matching
+  // every other panel on this screen. overflow: 'hidden' is a safety net:
+  // if the bracket-wrapper below ever miscalculates its size, it gets
+  // visibly clipped to this card instead of covering the header above it.
+  specimenPanel: {
+    width: '100%',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
     gap: spacing.lg,
     overflow: 'hidden',
   },
-  // Flexes to fill whatever vertical space is left in specimenPanel once
-  // its other children (hex readout, name, fact/verdict) take theirs —
-  // that's the "available height" ColorSwatch's large size fills. width:
-  // '100%' hands it the panel's full inner width as the other constraint,
-  // so the swatch shrinks to fit both, however short or narrow the screen.
-  specimenFrame: {
-    flex: 1,
-    width: '100%',
+  // Sized to an exact pixel square by SpecimenCard: the swatch's size
+  // plus BRACKET_INSET on every side, never a fixed value or aspectRatio
+  // left to resolve itself. The four brackets are its direct children,
+  // positioned at ITS corners (see tick* below) — so they sit exactly
+  // BRACKET_INSET outside the swatch, on every screen size, and can never
+  // be clipped by the card or overlap the swatch.
+  bracketWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.lg,
+  },
+  // The swatch's immediate container, sized to an exact pixel square by
+  // SpecimenCard — overflow: 'hidden' clips any future sizing error
+  // instead of letting it paint over the brackets.
+  swatchSlot: {
+    overflow: 'hidden',
+  },
+  // Centered over the swatch fill (see SwatchLabel) — inset from the
+  // swatch's own edges so long names shrink/wrap before ever reaching them.
+  swatchLabel: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    maxWidth: '100%',
+  },
+  // The focal point of the screen — bold system font (fonts.display),
+  // substantially larger than before. Label's own uppercase transform and
+  // letterSpacing:2 are untouched, inherited from Label's base style;
+  // this override only changes weight, font size, and alignment.
+  swatchLabelName: {
+    ...fonts.display,
+    fontSize: 36,
+    textAlign: 'center',
+  },
+  // Increased proportionally from before, but still clearly secondary —
+  // smaller than the name above it, dimmer, and below it. Keeps
+  // ReadoutText's existing tabular/letter-spacing treatment.
+  swatchLabelHex: {
+    fontSize: typeScale.value,
+    letterSpacing: -0.5,
+    opacity: 0.7,
+    marginTop: spacing.xs,
   },
   tick: {
     position: 'absolute',
@@ -396,14 +510,10 @@ const styles = StyleSheet.create({
   tickTR: { top: 0, right: 0, borderTopWidth: 1, borderRightWidth: 1 },
   tickBL: { bottom: 0, left: 0, borderBottomWidth: 1, borderLeftWidth: 1 },
   tickBR: { bottom: 0, right: 0, borderBottomWidth: 1, borderRightWidth: 1 },
-  specimenHex: {
-    fontSize: typeScale.specimen,
-    letterSpacing: -0.5,
-  },
   // Deliberately understated: muted color, small size, capped to two
-  // lines, with breathing room from the color name above it — flavor
-  // text for the negative space, not a competing headline. Body copy,
-  // so it's Work Sans (BodyText), not the hero font.
+  // lines — flavor text for the negative space below the specimen frame,
+  // not a competing headline. Body copy, so it's Work Sans (BodyText),
+  // not the hero font.
   colorFact: {
     fontSize: typeScale.label,
     color: colors.textMuted,

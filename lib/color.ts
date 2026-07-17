@@ -62,6 +62,45 @@ export function contrastTextColor(hex: string): string {
   return brightness >= 128 ? '#000000' : '#FFFFFF';
 }
 
+// The off-white paired with the app's charcoal (colors.background) below
+// — softer against a fully saturated swatch fill than pure #FFFFFF would
+// read, the same way colors.background is a softened near-black rather
+// than pure #000000 (see constants/theme.ts).
+const OFF_WHITE = '#F2F2F2';
+const CHARCOAL = '#121212'; // matches colors.background in constants/theme.ts
+
+// WCAG 2.x's sRGB gamma threshold (0.03928), not the more precise 0.04045
+// used elsewhere in this file — deliberately kept as its own constant
+// rather than reusing srgbChannelToLinear below, since the two exist for
+// different purposes (WCAG contrast vs. the Lab scoring pipeline) and
+// happen to use slightly different threshold values in their respective
+// specs.
+function linearizeSrgbChannelWCAG(channel: number): number {
+  const normalized = channel / 255;
+  return normalized <= 0.03928 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
+}
+
+// WCAG relative luminance: how bright a color reads to the eye, on a
+// 0 (black) to 1 (white) scale — not a simple channel average, since sRGB
+// is gamma-encoded and green contributes far more perceived brightness
+// than red or blue at the same intensity.
+function relativeLuminance(hex: string): number {
+  const { r, g, b } = hexToRgb(hex);
+  const rLin = linearizeSrgbChannelWCAG(r);
+  const gLin = linearizeSrgbChannelWCAG(g);
+  const bLin = linearizeSrgbChannelWCAG(b);
+  return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
+}
+
+// Picks charcoal or off-white text so it stays legible directly on top of
+// an arbitrary fill color, using WCAG relative luminance rather than
+// contrastTextColor's channel-average "luma" above — the more rigorous,
+// standards-based version for anywhere text sits directly on the daily
+// target color itself (see the Today screen's specimen swatch label).
+export function wcagContrastTextColor(hex: string): string {
+  return relativeLuminance(hex) > 0.179 ? CHARCOAL : OFF_WHITE;
+}
+
 // sRGB (the color space photos and screens use) applies a gamma curve to
 // each channel. Lab math needs "linear" light values, so this undoes it.
 function srgbChannelToLinear(channel: number): number {
