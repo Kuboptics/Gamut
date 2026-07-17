@@ -14,6 +14,7 @@ import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
+import { StatusDot } from '../../components/StatusDot';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
@@ -182,11 +183,24 @@ function todayStatusLabel(entry: LeaderboardEntry): string {
   return `${entry.todayAverage}% · ${entry.passedToday ? 'Pass' : 'Fail'}`;
 }
 
-// Rank 1 gets its own panel and visual weight — a signal-red accent
+// A small row pairing the score/status text with a color-coded pass/fail
+// dot (the same StatusDot used on Today's completed strip and day-detail),
+// so results are scannable at a glance instead of relying on the word
+// "Pass"/"Fail" alone. Renders no dot for someone who hasn't played yet.
+function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
+  return (
+    <View style={styles.statusRow}>
+      <Label>{todayStatusLabel(entry)}</Label>
+      {entry.playedToday && <StatusDot passed={entry.passedToday} />}
+    </View>
+  );
+}
+
+// Rank 1 gets its own panel and visual weight — a muted-gold medal accent
 // border, the streak in HeroText with a larger flame, rather than just
-// being the top row of a plain list. Still just one accent color, no
-// trophy/gradient. The signed-in user's own row (whether or not they're
-// #1) additionally gets a background tint so it's instantly findable.
+// being the top row of a plain list. The signed-in user's own row
+// (whether or not they're #1) additionally gets a background tint so
+// it's instantly findable.
 type RowProps = { entry: LeaderboardEntry; isYou: boolean; onOpenPhoto: (entry: LeaderboardEntry, index: number) => void };
 
 function LeaderRow({ entry, isYou, onOpenPhoto }: RowProps) {
@@ -197,7 +211,7 @@ function LeaderRow({ entry, isYou, onOpenPhoto }: RowProps) {
           <Label style={styles.leaderRank}>1</Label>
           <View>
             <BodyText style={styles.leaderName}>{isYou ? 'You' : entry.displayName}</BodyText>
-            <Label>{todayStatusLabel(entry)}</Label>
+            <TodayStatus entry={entry} />
             {entry.playedToday && (
               <FriendThumbnails
                 urls={entry.thumbnailUrls}
@@ -216,14 +230,23 @@ function LeaderRow({ entry, isYou, onOpenPhoto }: RowProps) {
   );
 }
 
+// Ranks 2 and 3 get a restrained silver/bronze medal accent (rank number
+// color + a thin left border, echoing rank 1's border treatment at a
+// smaller scale); rank 4+ stays plain.
+const MEDAL_COLOR_BY_RANK: Record<number, string> = {
+  2: colors.medalSilver,
+  3: colors.medalBronze,
+};
+
 function RankRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: number }) {
+  const medalColor = MEDAL_COLOR_BY_RANK[rank];
   return (
-    <View style={[styles.row, isYou && styles.youTint]}>
+    <View style={[styles.row, isYou && styles.youTint, medalColor ? { borderLeftColor: medalColor } : null]}>
       <View style={styles.rowIdentity}>
-        <Label style={styles.rank}>{rank}</Label>
+        <Label style={[styles.rank, medalColor ? { color: medalColor } : null]}>{rank}</Label>
         <View>
           <BodyText style={styles.rowLabel}>{isYou ? 'You' : entry.displayName}</BodyText>
-          <Label>{todayStatusLabel(entry)}</Label>
+          <TodayStatus entry={entry} />
           {entry.playedToday && (
             <FriendThumbnails
               urls={entry.thumbnailUrls}
@@ -306,7 +329,7 @@ const styles = StyleSheet.create({
   error: {
     color: colors.signal,
   },
-  // The one deliberate accent on the whole screen — a signal-red left
+  // The restrained medal accent on the whole screen — a muted-gold left
   // border marking the #1 spot, not a fill/gradient.
   leaderPanel: {
     marginHorizontal: spacing.lg,
@@ -314,7 +337,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
     borderLeftWidth: 3,
-    borderLeftColor: colors.signal,
+    borderLeftColor: colors.medalGold,
   },
   leaderRow: {
     flexDirection: 'row',
@@ -327,8 +350,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   leaderRank: {
-    color: colors.signal,
-    width: 20,
+    color: colors.medalGold,
+    width: 24,
+    fontSize: typeScale.specimen,
     letterSpacing: -0.5,
     fontVariant: ['tabular-nums'],
   },
@@ -357,6 +381,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
+    // Transparent by default so ranks 4+ line up flush with the rest of
+    // the list; ranks 2/3 override this with their medal color inline.
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
   },
   rowIdentity: {
     flexDirection: 'row',
@@ -368,8 +396,14 @@ const styles = StyleSheet.create({
     fontSize: typeScale.button,
   },
   rank: {
-    width: 16,
+    width: 20,
+    fontSize: typeScale.value,
     fontVariant: ['tabular-nums'],
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   streakValue: {
     ...fonts.primarySemiBold,

@@ -24,6 +24,13 @@ export const colors = {
   // as `signal` (not a random hue) so the one always-colored tab bar
   // icon still reads as on-brand.
   flame: '#E8481A',
+  // The friends leaderboard's top-3 medal set — deliberately muted,
+  // desaturated metals (not bright arcade gold/silver/bronze), so the
+  // podium reads as restrained instrument detail rather than a game
+  // trophy. Rank #1 uses medalGold in place of `signal` red.
+  medalGold: '#B3944F',
+  medalSilver: '#9CA3AA',
+  medalBronze: '#8C6A4E',
 };
 
 // RN needs fontFamily and fontWeight as separate style properties, so
