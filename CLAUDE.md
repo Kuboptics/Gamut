@@ -35,9 +35,10 @@ The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technica
   - Live/alert states: the daily countdown dot, the reminder-active dot, and a pending friend-request alert dot.
   - PASS/FAIL: the red FAIL indicator, paired with a green PASS one.
   - The flame icon on the Progress tab (the streak symbol).
-  - The #1 spot on the friends leaderboard (rank number + left border) — signaling "you are leading," the same kind of signal as the live dot, not decoration.
+  - The "Locked until tomorrow's color" notice on the completed Today screen.
 - Game color content: dynamic, driven by the target and the shot. This is the only place hues are allowed to appear.
 - A couple of other narrow, deliberate exceptions to the monochrome rule live alongside the signal accent: the green PASS indicator above, and a warm red-orange flame icon on the Progress tab — both stay in the same restrained red/green family rather than introducing a random hue.
+- Friends leaderboard medals — the one other deliberate departure from monochrome+red: muted, desaturated metallic tones (never bright arcade gold/silver/bronze) mark the top 3 ranks. #B3944F (muted gold) marks #1 — replacing the signal-red treatment #1 used before this existed — #9CA3AA (muted silver) marks #2, and #8C6A4E (muted bronze) marks #3. Rank 4+ stays plain.
 
 ### Typography
 - Display type (the big score/percentage, the streak number, screen titles, and the PASS/FAIL verdict): Fugaz One, a bold rounded display face that echoes Nothing's confident numerals. The real Nothing font (Ndot) is proprietary, so do not use it.
