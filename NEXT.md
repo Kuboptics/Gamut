@@ -17,15 +17,19 @@ Everything below is **local to this worktree branch** (`worktree-vectorized-jump
 - Leaderboard row restructure — box-identical rows, medal-bar column, Fugaz One rank numerals (commit `a1e3b57`)
 - `CLAUDE.md` doc updates (commit `55d2f6b`) — docs only, doesn't ship to a device either way
 
-**I have no record of actual `eas update` / `eas build` run history** — I haven't run either in this worktree, and that history lives on Expo's servers, not in git. I can't tell you what's actually live for real users right now; only what's sitting in commits here versus what would need a rebuild once you do ship it.
+**`eas update` history (now confirmed via `eas channel:list`):** two channels exist, `production` and `preview`. `preview` has never had anything published to it — `production` is the one actually in use. You pushed to it yourself once ("save name button modifications"), and I pushed again after this session's work:
+```
+eas update --branch production --message "Friends leaderboard refactor (rank-1 highlight, no status dot) + Today screen swatch fixes (tight corner brackets, content-sized card, larger name/hex typography)"
+```
+— update group `8cfb3158-04ab-4c1b-8fbd-6da98200f8c3`, commit `f9e552e`, runtime version `1.0.0`, both platforms. So as of that commit, everything committed in this worktree is live on `production` — the "committed but not yet in any binary" section below only applies to what's committed *after* `f9e552e`.
 
 ## Resuming
 
-To ship everything above except the config/icon commits (JS + asset changes only):
+To ship anything new (JS + asset changes only) once you have more commits:
 ```
-eas update --branch preview --message "<describe what's in this update>"
+eas update --branch production --message "<describe what's in this update>"
 ```
-(Confirm `preview` is still the right branch name for your EAS project — it matches the `channel` in both `app.json`'s `updates.requestHeaders` and `eas.json`'s `preview` profile, but I haven't verified the actual branch list on your EAS project.)
+`production` is the confirmed real branch — not `preview`, despite what earlier notes here assumed.
 
 **Native config, the icon fix, and the `production` submit profile cannot go out this way.** Those require:
 ```
