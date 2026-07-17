@@ -2,7 +2,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { motionDuration, motionEasing } from '../constants/motion';
-import { colors, spacing } from '../constants/theme';
+import { colors, radius, spacing } from '../constants/theme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { PressableOpacity } from './PressableOpacity';
 
@@ -88,10 +88,11 @@ const styles = StyleSheet.create({
     height: SIZE,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
   },
-  // A muted dark block, one step lighter than the panel it sits on
-  // (same token the "you" row tint already uses), standing in for the
-  // photo until it's actually decoded and ready to show.
+  // A muted dark block, one step lighter than the panel it sits on,
+  // standing in for the photo until it's actually decoded and ready to show.
   placeholder: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.secondarySurface,

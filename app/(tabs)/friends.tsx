@@ -14,7 +14,6 @@ import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
-import { StatusDot } from '../../components/StatusDot';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
@@ -174,30 +173,31 @@ export default function FriendsScreen() {
   );
 }
 
-// "73% · Pass", "41% · Fail", or "Not yet".
-function todayStatusLabel(entry: LeaderboardEntry): string {
-  if (!entry.playedToday) return 'Not yet';
-  return `${entry.todayAverage}% · ${entry.passedToday ? 'Pass' : 'Fail'}`;
-}
-
-// A small row pairing the score/status text with a color-coded pass/fail
-// dot (the same StatusDot used on Today's completed strip and day-detail),
-// so results are scannable at a glance instead of relying on the word
-// "Pass"/"Fail" alone. Renders no dot for someone who hasn't played yet.
+// The percentage itself carries the pass/fail color, so a separate dot
+// would just be repeating the same signal a second time — the "Pass"/
+// "Fail" word stays too, but plain, since the number already colors it.
 function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
+  if (!entry.playedToday) {
+    return (
+      <View style={styles.statusRow}>
+        <Label>Not yet</Label>
+      </View>
+    );
+  }
+  const scoreColor = entry.passedToday ? colors.positive : colors.signal;
   return (
     <View style={styles.statusRow}>
-      <Label>{todayStatusLabel(entry)}</Label>
-      {entry.playedToday && <StatusDot passed={entry.passedToday} />}
+      <Label style={{ color: scoreColor }}>{entry.todayAverage}%</Label>
+      <Label>· {entry.passedToday ? 'Pass' : 'Fail'}</Label>
     </View>
   );
 }
 
 // One row shape for every rank — geometry is identical across the whole
 // list (fixed-width rank column, fixed-width medal bar, flexed identity,
-// fixed streak column), so nothing shifts horizontally between rows. The
-// signed-in user's own row gets a background fill only, never a border
-// or radius change, so it stays box-identical to every other row.
+// fixed streak column), so nothing shifts horizontally between rows. Only
+// rank 1 gets a visible border/tint (see styles.rowRankOne) — the
+// signed-in user's own row ("You") carries no separate highlight.
 type RowProps = { entry: LeaderboardEntry; isYou: boolean; onOpenPhoto: (entry: LeaderboardEntry, index: number) => void };
 
 // The 1/2/3 medal tints — same colors.medalGold/Silver/Bronze values as
@@ -212,7 +212,7 @@ const RANK_TINT: Record<number, string> = {
 function LeaderboardRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: number }) {
   const medalColor = RANK_TINT[rank];
   return (
-    <View style={[styles.row, isYou && styles.youTint]}>
+    <View style={[styles.row, rank === 1 && styles.rowRankOne]}>
       <View style={styles.rankColumn}>
         <Label style={[styles.rank, medalColor ? { color: medalColor } : null]}>{rank}</Label>
       </View>
@@ -301,24 +301,39 @@ const styles = StyleSheet.create({
   error: {
     color: colors.signal,
   },
-  // One shape for every row, rank 1 included — same paddingHorizontal,
-  // same border, same minHeight regardless of content, so nothing shifts
-  // horizontally or vertically between rows. minHeight matches
-  // FriendThumbnails' 56pt squares so a row without thumbnails (hasn't
-  // played today) still reserves the same height as one with them.
+  // One shape for every row, rank 1 included — same paddingHorizontal and
+  // the same borderWidth/borderRadius, so nothing shifts horizontally
+  // between rows. Non-highlighted rows get a transparent border (so the
+  // box-model is identical to rank 1's) and a hairline top divider; a row
+  // without thumbnails (hasn't played today) simply collapses to its own
+  // natural, shorter height rather than being padded out to match one
+  // that has them.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    minHeight: 56,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  // Rank 1 only: a rounded border + very slight background tint, both in
+  // the same muted gold as the medal tint — no shadow/elevation, just
+  // border + fill. borderTopWidth/Color are overridden here too so all
+  // four sides read as one continuous gold rectangle instead of a
+  // gold border interrupted by the plain hairline divider.
+  rowRankOne: {
+    borderColor: colors.medalGold,
+    borderTopWidth: 1,
+    borderTopColor: colors.medalGold,
+    backgroundColor: 'rgba(179, 148, 79, 0.08)',
+  },
   rankColumn: {
     width: 32,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexShrink: 0,
   },
   // Fugaz One (fonts.wordmark) — the same face as the Today wordmark,
@@ -367,12 +382,5 @@ const styles = StyleSheet.create({
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
     fontVariant: ['tabular-nums'],
-  },
-  // Marks the signed-in user's own row so they can find themselves
-  // instantly — a background fill only, nothing that would change the
-  // row's box (no border, no radius), so it stays identical in shape to
-  // every other row.
-  youTint: {
-    backgroundColor: colors.secondarySurface,
   },
 });
