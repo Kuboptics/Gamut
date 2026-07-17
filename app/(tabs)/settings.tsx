@@ -1,9 +1,10 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ActionButton } from '../../components/ActionButton';
 import { BodyText } from '../../components/BodyText';
@@ -15,8 +16,10 @@ import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { motionDuration, motionEasing } from '../../constants/motion';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
 
@@ -64,10 +67,14 @@ export default function SettingsScreen() {
   const [showIntro, setShowIntro] = useState(false);
 
   const [displayNameInput, setDisplayNameInput] = useState('');
+  // The last name actually persisted — the yardstick for "has this been
+  // edited?" (isNameDirty below) and what the field reverts to showing
+  // once a save lands.
+  const [savedName, setSavedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
-  const [nameSaved, setNameSaved] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [profileLoadError, setProfileLoadError] = useState(false);
+  const nameInputRef = useRef<TextInput>(null);
 
   const userId = user?.id;
   const userEmail = user?.email;
@@ -83,24 +90,31 @@ export default function SettingsScreen() {
     ensureProfile(userId, fallbackName)
       .then((profile) => {
         setDisplayNameInput(profile.displayName);
+        setSavedName(profile.displayName);
       })
       .catch(() => setProfileLoadError(true));
   }, [userId, userEmail]);
 
   useFocusEffect(refreshProfile);
 
+  const trimmedNameInput = displayNameInput.trim();
+  // Drives the Save button's fade — true only once the field actually
+  // differs from what's saved, never just because it's focused. An empty
+  // field can never be "dirty", so Save can't appear for a blank name.
+  const isNameDirty = trimmedNameInput.length > 0 && trimmedNameInput !== savedName;
+
   async function handleSaveName() {
-    if (!user || isSavingName) return;
-    const trimmed = displayNameInput.trim();
-    if (!trimmed) return;
+    if (!user || isSavingName || !isNameDirty) return;
+    const trimmed = trimmedNameInput;
     setIsSavingName(true);
-    setNameSaved(false);
     setNameError(null);
     try {
       await updateDisplayName(user.id, trimmed);
-      setNameSaved(true);
-    } catch {
-      setNameError("Couldn't save that name — try again.");
+      setSavedName(trimmed);
+      setDisplayNameInput(trimmed);
+      nameInputRef.current?.blur();
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : "Couldn't save that name — try again.");
     } finally {
       setIsSavingName(false);
     }
@@ -119,6 +133,19 @@ export default function SettingsScreen() {
     if (event.type === 'dismissed' || !date) return;
     setTime(date.getHours(), date.getMinutes());
   }
+
+  // The Save button is always mounted beside the field — only its
+  // opacity animates — so it never resizes the row or shifts the input
+  // beside it the way the old label-swapping button did.
+  const reducedMotion = useReducedMotion();
+  const saveButtonOpacity = useSharedValue(0);
+  useEffect(() => {
+    const target = isNameDirty ? 1 : 0;
+    saveButtonOpacity.value = reducedMotion
+      ? target
+      : withTiming(target, { duration: motionDuration.base, easing: motionEasing });
+  }, [isNameDirty, reducedMotion, saveButtonOpacity]);
+  const saveButtonAnimatedStyle = useAnimatedStyle(() => ({ opacity: saveButtonOpacity.value }));
 
   const swipeHandlers = useTabSwipe(3);
 
@@ -198,23 +225,22 @@ export default function SettingsScreen() {
                 )}
 
                 <TextField
+                  ref={nameInputRef}
                   label="Display Name"
                   value={displayNameInput}
                   onChangeText={(text) => {
                     setDisplayNameInput(text);
-                    setNameSaved(false);
                     setNameError(null);
                   }}
+                  onSubmitEditing={handleSaveName}
                   placeholder="Player"
                   maxLength={MAX_DISPLAY_NAME_LENGTH}
                   autoComplete="name"
                   textContentType="name"
                   accessory={
-                    <ActionButton
-                      label={isSavingName ? '…' : nameSaved ? 'Change Display Name' : 'Save'}
-                      tone="neutral"
-                      onPress={handleSaveName}
-                    />
+                    <Animated.View style={saveButtonAnimatedStyle} pointerEvents={isNameDirty ? 'auto' : 'none'}>
+                      <ActionButton label="Save" tone="neutral" onPress={handleSaveName} />
+                    </Animated.View>
                   }
                 />
                 {nameError && <BodyText style={styles.error}>{nameError}</BodyText>}

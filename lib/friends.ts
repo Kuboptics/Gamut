@@ -84,9 +84,20 @@ export async function ensureProfile(userId: string, fallbackDisplayName: string)
 }
 
 // Names can be changed as often as the player likes — no cooldown.
+// Chained with .select('id') so we get back the row(s) Postgres actually
+// updated — same reasoning as removeFriend below: RLS turns a denied
+// update into "0 rows affected" with no error, which would otherwise look
+// identical to a real success.
 export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
-  const { error } = await supabase.from('profiles').update({ display_name: displayName }).eq('id', userId);
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ display_name: displayName })
+    .eq('id', userId)
+    .select('id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("That name couldn't be saved — try again.");
+  }
 }
 
 async function lookupUserIdByCode(code: string): Promise<string | null> {
