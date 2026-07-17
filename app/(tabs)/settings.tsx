@@ -279,11 +279,11 @@ export default function SettingsScreen() {
                 <View style={styles.scoreLegendRow}>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, styles.legendDotPass]} />
-                    <Label>60%+ passes</Label>
+                    <Label>50%+ passes</Label>
                   </View>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, styles.legendDotFail]} />
-                    <Label>Below 60% fails</Label>
+                    <Label>Below 50% fails</Label>
                   </View>
                 </View>
               )}

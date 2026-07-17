@@ -8,7 +8,7 @@ import { useAuth } from './AuthContext';
 // A round is 3 photos against today's color; the round passes if the
 // average of the 3 scores is at least this percentage.
 export const PHOTOS_PER_ROUND = 3;
-export const PASS_THRESHOLD = 60;
+export const PASS_THRESHOLD = 50;
 
 // Where the in-progress round is saved on device, so it survives the
 // app being fully closed (not just backgrounded). Suffixed per signed-in

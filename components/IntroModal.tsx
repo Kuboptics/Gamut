@@ -16,7 +16,7 @@ import { PrimaryButton } from './PrimaryButton';
 const INTRO_LINES = [
   "Find today's color somewhere in the real world.",
   'Submit three photos containing it.',
-  'Each is scored — the average decides pass or fail at 60%.',
+  'Each is scored — the average decides pass or fail at 50%.',
   'Play daily to build your streak.',
 ];
 
