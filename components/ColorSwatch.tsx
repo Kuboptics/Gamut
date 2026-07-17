@@ -22,9 +22,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  // "large" fills whatever square the parent gives it: height comes from
+  // the flexible container it sits in (see SpecimenFrame on the Today
+  // screen), aspectRatio keeps it a square, and maxWidth clamps it back
+  // down if that height would make it wider than the container — so it
+  // shrinks to fit on short phones instead of overflowing its card.
   large: {
-    width: 220,
-    height: 220,
+    height: '100%',
+    aspectRatio: 1,
+    maxWidth: '100%',
   },
   small: {
     width: 130,

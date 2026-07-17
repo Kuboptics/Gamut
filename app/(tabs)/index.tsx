@@ -325,6 +325,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
+    // Fixed height, never shrinks — the specimen panel below flexes
+    // instead, so its content can never push up over this row.
+    flexShrink: 0,
   },
   wordmark: {
     alignItems: 'flex-start',
@@ -359,6 +362,9 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   // Layout only — the surface fill/border/radius now come from Panel.
+  // overflow: 'hidden' is a safety net: if the swatch below ever miscalculates
+  // its size, it gets visibly clipped to this card instead of covering the
+  // header above it.
   specimenPanel: {
     flex: 1,
     marginHorizontal: spacing.lg,
@@ -366,8 +372,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.lg,
+    overflow: 'hidden',
   },
+  // Flexes to fill whatever vertical space is left in specimenPanel once
+  // its other children (hex readout, name, fact/verdict) take theirs —
+  // that's the "available height" ColorSwatch's large size fills. width:
+  // '100%' hands it the panel's full inner width as the other constraint,
+  // so the swatch shrinks to fit both, however short or narrow the screen.
   specimenFrame: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: spacing.lg,
   },
   tick: {
