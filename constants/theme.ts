@@ -54,9 +54,9 @@ export const fonts = {
   // verdict word counts too — same hero tier as the score beside it).
   // Never body copy or small labels.
   display: { fontFamily: 'System', fontWeight: '700' } as const,
-  // Fugaz One survives ONLY for the Gamut wordmark on the Today tab —
-  // see app/(tabs)/index.tsx's wordmarkTitle style, the one place this
-  // is referenced.
+  // Fugaz One — the Gamut wordmark on the Today tab (see
+  // app/(tabs)/index.tsx's wordmarkTitle style) and the leaderboard's
+  // rank numerals (see app/(tabs)/friends.tsx's rank style).
   wordmark: { fontFamily: 'FugazOne_400Regular', fontWeight: '400' } as const,
 };
 

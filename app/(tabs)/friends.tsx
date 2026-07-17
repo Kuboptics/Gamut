@@ -81,7 +81,6 @@ export default function FriendsScreen() {
     setIsRefreshing(false);
   }, [loadLeaderboard]);
 
-  const [leader, ...rest] = leaderboard;
   const swipeHandlers = useTabSwipe(2);
 
   // Which friend's photo viewer is open, and which of their 3 shots it
@@ -142,15 +141,13 @@ export default function FriendsScreen() {
             </Panel>
           )}
 
-          {leader && <LeaderRow entry={leader} isYou={leader.userId === userId} onOpenPhoto={openPhoto} />}
-
-          {rest.length > 0 && (
+          {leaderboard.length > 0 && (
             <Panel style={styles.panel}>
-              {rest.map((entry, index) => (
-                <RankRow
+              {leaderboard.map((entry, index) => (
+                <LeaderboardRow
                   key={entry.userId}
                   entry={entry}
-                  rank={index + 2}
+                  rank={index + 1}
                   isYou={entry.userId === userId}
                   onOpenPhoto={openPhoto}
                 />
@@ -196,65 +193,40 @@ function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
   );
 }
 
-// Rank 1 gets its own panel and visual weight — a muted-gold medal accent
-// border, the streak in HeroText with a larger flame, rather than just
-// being the top row of a plain list. The signed-in user's own row
-// (whether or not they're #1) additionally gets a background tint so
-// it's instantly findable.
+// One row shape for every rank — geometry is identical across the whole
+// list (fixed-width rank column, fixed-width medal bar, flexed identity,
+// fixed streak column), so nothing shifts horizontally between rows. The
+// signed-in user's own row gets a background fill only, never a border
+// or radius change, so it stays box-identical to every other row.
 type RowProps = { entry: LeaderboardEntry; isYou: boolean; onOpenPhoto: (entry: LeaderboardEntry, index: number) => void };
 
-function LeaderRow({ entry, isYou, onOpenPhoto }: RowProps) {
-  return (
-    <Panel style={[styles.leaderPanel, isYou && styles.youTint]}>
-      <View style={styles.leaderRow}>
-        <View style={styles.leaderIdentity}>
-          <Label style={styles.leaderRank}>1</Label>
-          <View>
-            <BodyText style={styles.leaderName}>{isYou ? 'You' : entry.displayName}</BodyText>
-            <TodayStatus entry={entry} />
-            {entry.playedToday && (
-              <FriendThumbnails
-                urls={entry.thumbnailUrls}
-                style={styles.thumbnails}
-                onPressPhoto={(index) => onOpenPhoto(entry, index)}
-              />
-            )}
-          </View>
-        </View>
-        <View style={styles.streakGroup}>
-          <HeroText style={styles.leaderStreak}>{entry.streak}</HeroText>
-          <FlameIcon size={28} />
-        </View>
-      </View>
-    </Panel>
-  );
-}
-
-// Ranks 2 and 3 get a restrained silver/bronze medal accent (rank number
-// color + a thin left border, echoing rank 1's border treatment at a
-// smaller scale); rank 4+ stays plain.
-const MEDAL_COLOR_BY_RANK: Record<number, string> = {
+// The 1/2/3 medal tints — same colors.medalGold/Silver/Bronze values as
+// before, now applied to both the rank number and the dedicated medal
+// bar column below (rank 4+ gets neither).
+const RANK_TINT: Record<number, string> = {
+  1: colors.medalGold,
   2: colors.medalSilver,
   3: colors.medalBronze,
 };
 
-function RankRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: number }) {
-  const medalColor = MEDAL_COLOR_BY_RANK[rank];
+function LeaderboardRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: number }) {
+  const medalColor = RANK_TINT[rank];
   return (
-    <View style={[styles.row, isYou && styles.youTint, medalColor ? { borderLeftColor: medalColor } : null]}>
-      <View style={styles.rowIdentity}>
+    <View style={[styles.row, isYou && styles.youTint]}>
+      <View style={styles.rankColumn}>
         <Label style={[styles.rank, medalColor ? { color: medalColor } : null]}>{rank}</Label>
-        <View>
-          <BodyText style={styles.rowLabel}>{isYou ? 'You' : entry.displayName}</BodyText>
-          <TodayStatus entry={entry} />
-          {entry.playedToday && (
-            <FriendThumbnails
-              urls={entry.thumbnailUrls}
-              style={styles.thumbnails}
-              onPressPhoto={(index) => onOpenPhoto(entry, index)}
-            />
-          )}
-        </View>
+      </View>
+      <View style={[styles.medalBar, medalColor ? { backgroundColor: medalColor } : null]} />
+      <View style={styles.identity}>
+        <BodyText style={styles.name}>{isYou ? 'You' : entry.displayName}</BodyText>
+        <TodayStatus entry={entry} />
+        {entry.playedToday && (
+          <FriendThumbnails
+            urls={entry.thumbnailUrls}
+            style={styles.thumbnails}
+            onPressPhoto={(index) => onOpenPhoto(entry, index)}
+          />
+        )}
       </View>
       <View style={styles.streakGroup}>
         <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
@@ -329,81 +301,67 @@ const styles = StyleSheet.create({
   error: {
     color: colors.signal,
   },
-  // The restrained medal accent on the whole screen — a muted-gold left
-  // border marking the #1 spot, not a fill/gradient.
-  leaderPanel: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.medalGold,
-  },
-  leaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  leaderIdentity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  leaderRank: {
-    color: colors.medalGold,
-    width: 24,
-    fontSize: typeScale.specimen,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
-  leaderName: {
-    ...fonts.primarySemiBold,
-    fontSize: typeScale.value,
-  },
-  thumbnails: {
-    marginTop: spacing.sm,
-  },
-  streakGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  leaderStreak: {
-    fontSize: typeScale.specimen,
-    letterSpacing: -0.5,
-    fontVariant: ['tabular-nums'],
-  },
+  // One shape for every row, rank 1 included — same paddingHorizontal,
+  // same border, same minHeight regardless of content, so nothing shifts
+  // horizontally or vertically between rows. minHeight matches
+  // FriendThumbnails' 56pt squares so a row without thumbnails (hasn't
+  // played today) still reserves the same height as one with them.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
+    minHeight: 56,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
-    // Transparent by default so ranks 4+ line up flush with the rest of
-    // the list; ranks 2/3 override this with their medal color inline.
-    borderLeftWidth: 3,
-    borderLeftColor: 'transparent',
   },
-  rowIdentity: {
-    flexDirection: 'row',
+  rankColumn: {
+    width: 32,
     alignItems: 'center',
-    gap: spacing.md,
+    flexShrink: 0,
   },
-  rowLabel: {
+  // Fugaz One (fonts.wordmark) — the same face as the Today wordmark,
+  // used here for the rank numeral's display weight. lineHeight is set
+  // explicitly because Fugaz's vertical metrics differ from SF's; left
+  // to the font's own defaults it renders visibly off-baseline against
+  // the row's other (SF) text once centered by `row`'s alignItems.
+  rank: {
+    ...fonts.wordmark,
+    fontSize: typeScale.specimen,
+    lineHeight: 32,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  // A real column, not a border — same width on every row so ranks 4+
+  // (transparent fill) still occupy the same space as 1/2/3, keeping
+  // every column after it aligned.
+  medalBar: {
+    width: 3,
+    alignSelf: 'stretch',
+    backgroundColor: 'transparent',
+    flexShrink: 0,
+  },
+  identity: {
+    flex: 1,
+  },
+  name: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
-  rank: {
-    width: 20,
-    fontSize: typeScale.value,
-    fontVariant: ['tabular-nums'],
+  thumbnails: {
+    marginTop: spacing.sm,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  streakGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 0,
   },
   streakValue: {
     ...fonts.primarySemiBold,
@@ -411,10 +369,10 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // Marks the signed-in user's own row so they can find themselves
-  // instantly — composes with the leader panel's border accent above
-  // without conflicting (a tint plus a border, not two competing colors).
+  // instantly — a background fill only, nothing that would change the
+  // row's box (no border, no radius), so it stays identical in shape to
+  // every other row.
   youTint: {
     backgroundColor: colors.secondarySurface,
-    borderRadius: radius.sm,
   },
 });
