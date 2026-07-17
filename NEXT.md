@@ -1,5 +1,13 @@
 # Resuming work on Gamut
 
+## Incident: production rollback, 17 July 2026
+
+Production was rolled back on 17 July to the `eas update` that shipped the tab-swipe fix (commit `fb4c3d5`), because commit `caaf276` ("Fix choppy/glitchy PASS-FAIL reveal on the Round Result screen") caused a **permanent hang on the scoring state after submitting a round**. Any player who submitted a round on the broken update got stuck and could not see their result.
+
+- `caaf276` has been **reverted locally** (revert commit `36ad392`), so `app/summary.tsx` and `components/ResultCelebration.tsx` are back to their `fb4c3d5` state. The revert is not a fix — the underlying PASS/FAIL reveal work still needs to be redone properly, this time with an error state and a timeout (see below).
+- **Root cause:** the submit flow's state machine has no error state and no timeout. If anything in that flow fails or stalls, there is no path out of the "scoring" state — it just hangs forever. This is true regardless of `caaf276`; that commit only happened to be what triggered it. Any future rewrite of this flow must add both an explicit error state and a timeout that forces a transition out of "scoring."
+- **`eas update` publishes whatever is in the working tree at the time you run it — not a specific commit.** Nothing in this repository records what was actually live on production at any given point. The "confirmed via `eas channel:list`" note further down, and the commit hash it cites, are only trustworthy as of when they were written — always re-confirm via `eas channel:list` / `eas update:list` before assuming what's live, don't trust a commit hash in this file.
+
 ## Current state
 
 Everything below is **local to this worktree branch** (`worktree-vectorized-jumping-hellman`) — there's no remote configured here and nothing has been pushed. `git log --oneline -8` at the bottom of this doc is the true state.
