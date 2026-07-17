@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Share, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Share, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton } from '../../components/ActionButton';
@@ -21,6 +21,7 @@ import {
   fetchFriends,
   fetchIncomingRequests,
   fetchOutgoingRequests,
+  removeFriend,
   respondToRequest,
   sendFriendRequest,
   type Friend,
@@ -47,6 +48,7 @@ export default function ManageFriendsScreen() {
   const [sendSuccess, setSendSuccess] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const email = user?.email;
   const refresh = useCallback(() => {
@@ -109,6 +111,32 @@ export default function ManageFriendsScreen() {
     } catch {
       // Non-fatal: the request just stays pending; the user can try again.
     }
+  }
+
+  // Removing a friend is destructive (it ends the friendship for both
+  // sides at once — see lib/friends.ts), so it's gated behind a
+  // confirmation, same pattern as Today's "Submit Round" confirm. Unlike
+  // the request accept/decline below, a failure here is surfaced rather
+  // than swallowed — removeFriend throws when the delete didn't actually
+  // remove anything (e.g. a missing RLS policy), and a friend silently
+  // staying in the list with no explanation was exactly the bug being fixed.
+  function handleRemoveFriend(friend: Friend) {
+    Alert.alert(`Remove ${friend.displayName}?`, "You'll need to add each other again to reconnect.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          setRemoveError(null);
+          try {
+            await removeFriend(friend.id);
+            refresh();
+          } catch {
+            setRemoveError("Couldn't remove that friend — try again.");
+          }
+        },
+      },
+    ]);
   }
 
   const hasAnyRequests = incoming.length > 0 || outgoing.length > 0;
@@ -220,12 +248,14 @@ export default function ManageFriendsScreen() {
 
         <Panel style={styles.panel}>
           <Label>Friends</Label>
+          {removeError && <BodyText style={styles.error}>{removeError}</BodyText>}
           {friends.length === 0 ? (
             <BodyText style={styles.note}>No friends yet — share your code to add one.</BodyText>
           ) : (
             friends.map((friend) => (
               <View key={friend.id} style={styles.row}>
                 <BodyText style={styles.rowLabel}>{friend.displayName}</BodyText>
+                <ActionButton label="Remove" tone="signal" onPress={() => handleRemoveFriend(friend)} />
               </View>
             ))
           )}
@@ -269,6 +299,7 @@ const styles = StyleSheet.create({
   },
   code: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   note: {
     color: colors.textMuted,
@@ -317,7 +348,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   rowLabel: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
   rowActions: {

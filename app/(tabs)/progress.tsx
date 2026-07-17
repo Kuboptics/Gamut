@@ -186,8 +186,6 @@ export default function ProgressScreen() {
               </View>
             ))}
           </View>
-
-          <Label style={styles.footerNote}>Color fill = that day&apos;s color · green/red ring = pass/fail</Label>
         </Panel>
       </ScrollView>
     </SafeAreaView>
@@ -206,6 +204,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   scrollContent: {
     paddingBottom: spacing.xxl,
@@ -231,6 +230,8 @@ const styles = StyleSheet.create({
   },
   streakNumber: {
     fontSize: typeScale.display,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   chainRow: {
     flexDirection: 'row',
@@ -265,7 +266,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   month: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.value,
   },
   weekRow: {
@@ -310,7 +311,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   dayNumberToday: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     color: colors.textPrimary,
   },
   // A soft halo in the opposite tone behind the number, so it stays
@@ -331,9 +332,5 @@ const styles = StyleSheet.create({
     width: 6,
     height: 2,
     backgroundColor: colors.signal,
-  },
-  footerNote: {
-    textAlign: 'center',
-    marginTop: spacing.xs,
   },
 });

@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   // the same button-label tier even though these two are outlined
   // rather than solid.
   actionLabel: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
 });

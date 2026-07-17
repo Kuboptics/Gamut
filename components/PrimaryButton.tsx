@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   label: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
     color: colors.background,
   },

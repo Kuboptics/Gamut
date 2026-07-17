@@ -26,22 +26,36 @@ export const colors = {
   flame: '#E8481A',
 };
 
+// RN needs fontFamily and fontWeight as separate style properties, so
+// each entry here is a small style fragment — spread it (`...fonts.x`)
+// into a StyleSheet.create block rather than assigning it straight to
+// fontFamily.
+// `as const` below keeps each fontWeight a specific literal ('400' etc.)
+// instead of widening to the general `string` type — React Native's
+// fontWeight style prop only accepts specific literals like '400', not
+// any string, so this is required for the spreads below to type-check.
 export const fonts = {
-  // Work Sans — the primary grotesque for nearly everything: labels,
-  // body copy, buttons, list rows, general UI. The app's default type.
-  primary: 'WorkSans_400Regular',
-  primarySemiBold: 'WorkSans_600SemiBold',
-  primaryBold: 'WorkSans_700Bold',
-  // Fugaz One — ONLY for large "hero" display moments: the big score/
+  // The iOS system font (SF) — the primary grotesque for nearly
+  // everything: labels, body copy, buttons, list rows, general UI.
+  // The app's default type.
+  primary: { fontFamily: 'System', fontWeight: '400' } as const,
+  primaryMedium: { fontFamily: 'System', fontWeight: '500' } as const,
+  primarySemiBold: { fontFamily: 'System', fontWeight: '600' } as const,
+  primaryBold: { fontFamily: 'System', fontWeight: '700' } as const,
+  // Bold system, for large "hero" display moments: the big score/
   // percentage, the streak number, and screen titles (the PASS/FAIL
   // verdict word counts too — same hero tier as the score beside it).
   // Never body copy or small labels.
-  hero: 'FugazOne_400Regular',
+  display: { fontFamily: 'System', fontWeight: '700' } as const,
+  // Fugaz One survives ONLY for the Gamut wordmark on the Today tab —
+  // see app/(tabs)/index.tsx's wordmarkTitle style, the one place this
+  // is referenced.
+  wordmark: { fontFamily: 'FugazOne_400Regular', fontWeight: '400' } as const,
 };
 
 // The two data readouts — the target hex code and the daily drop
-// countdown — don't get a third font. They're `primarySemiBold` (Work
-// Sans) with tabular figures, via the ReadoutText component, so digits
+// countdown — don't get a third font. They're `primarySemiBold` (system
+// font) with tabular figures, via the ReadoutText component, so digits
 // stay precise and legible instead of decorative.
 
 // A small, consistent radius scale for "instrument chrome" — panels and

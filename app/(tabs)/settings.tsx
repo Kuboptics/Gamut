@@ -22,12 +22,6 @@ import { ensureProfile, updateDisplayName } from '../../lib/friends';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
 
-// "You can change your name again on July 21, 2026." — same date style
-// as app/day-detail.tsx.
-function formatLockDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
 // Formats an hour/minute pair as "6:30 PM" — same 12-hour, no-leading-
 // zero style a clock face would use.
 function formatTime(hour: number, minute: number): string {
@@ -70,7 +64,6 @@ export default function SettingsScreen() {
   const [showIntro, setShowIntro] = useState(false);
 
   const [displayNameInput, setDisplayNameInput] = useState('');
-  const [nameLockedUntil, setNameLockedUntil] = useState<string | null>(null);
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -90,7 +83,6 @@ export default function SettingsScreen() {
     ensureProfile(userId, fallbackName)
       .then((profile) => {
         setDisplayNameInput(profile.displayName);
-        setNameLockedUntil(profile.displayNameLockedUntil);
       })
       .catch(() => setProfileLoadError(true));
   }, [userId, userEmail]);
@@ -101,21 +93,12 @@ export default function SettingsScreen() {
     if (!user || isSavingName) return;
     const trimmed = displayNameInput.trim();
     if (!trimmed) return;
-    if (nameLockedUntil && Date.now() < new Date(nameLockedUntil).getTime()) {
-      setNameError(`You can change your name again on ${formatLockDate(nameLockedUntil)}.`);
-      return;
-    }
     setIsSavingName(true);
     setNameSaved(false);
     setNameError(null);
     try {
-      const result = await updateDisplayName(user.id, trimmed);
-      if (result.ok) {
-        setNameSaved(true);
-      } else {
-        setNameLockedUntil(result.lockedUntil);
-        setNameError(`You can change your name again on ${formatLockDate(result.lockedUntil)}.`);
-      }
+      await updateDisplayName(user.id, trimmed);
+      setNameSaved(true);
     } catch {
       setNameError("Couldn't save that name — try again.");
     } finally {
@@ -197,8 +180,6 @@ export default function SettingsScreen() {
               )}
             </View>
           )}
-
-          <Label style={styles.note}>Local reminder only — nothing leaves your phone</Label>
         </Panel>
 
         {isAuthLoaded && (
@@ -230,7 +211,7 @@ export default function SettingsScreen() {
                   textContentType="name"
                   accessory={
                     <ActionButton
-                      label={isSavingName ? '…' : nameSaved ? 'Saved' : 'Save'}
+                      label={isSavingName ? '…' : nameSaved ? 'Change Display Name' : 'Save'}
                       tone="neutral"
                       onPress={handleSaveName}
                     />
@@ -238,9 +219,9 @@ export default function SettingsScreen() {
                 />
                 {nameError && <BodyText style={styles.error}>{nameError}</BodyText>}
 
-                <PressableOpacity onPress={() => signOut()}>
-                  <BodyText style={styles.link}>Sign Out</BodyText>
-                </PressableOpacity>
+                <View style={styles.authButtonRow}>
+                  <ActionButton label="Sign Out" tone="signal" onPress={() => signOut()} />
+                </View>
               </>
             ) : (
               <>
@@ -248,9 +229,9 @@ export default function SettingsScreen() {
                   Sign in to get ready for friends and leaderboards — the game itself never requires it.
                 </BodyText>
                 <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
-                <PressableOpacity onPress={() => router.push('/sign-in')}>
-                  <BodyText style={styles.link}>Already have an account? Sign In</BodyText>
-                </PressableOpacity>
+                <View style={styles.authButtonRow}>
+                  <ActionButton label="Sign In" tone="neutral" onPress={() => router.push('/sign-in')} />
+                </View>
               </>
             )}
           </Panel>
@@ -310,6 +291,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   scrollContent: {
     paddingBottom: spacing.xxl,
@@ -341,7 +323,7 @@ const styles = StyleSheet.create({
   // A row title, not a small caption, so it's a plain-case Inter
   // BodyText rather than the small tracked-uppercase Label style.
   rowLabel: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
   note: {
@@ -354,8 +336,9 @@ const styles = StyleSheet.create({
   // A clock reading, not a hex code/score/the drop countdown, so it's
   // outside the narrowed dot-matrix rule — Inter (BodyText) instead.
   timeValue: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   picker: {
     height: 160,
@@ -370,9 +353,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   link: {
-    fontFamily: fonts.primary,
+    ...fonts.primary,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  // Keeps Sign Out/Sign In compact and centered, like the other row-level
+  // ActionButtons on this screen, instead of stretching full-width the
+  // way PrimaryButton does.
+  authButtonRow: {
+    alignItems: 'center',
   },
   error: {
     color: colors.signal,
@@ -394,7 +383,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   sectionTitle: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
   sectionBody: {

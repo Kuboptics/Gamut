@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   optionLabel: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
 });

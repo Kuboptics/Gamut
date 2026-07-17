@@ -11,6 +11,7 @@ import { FriendThumbnails } from '../../components/FriendThumbnails';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
+import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
@@ -82,6 +83,13 @@ export default function FriendsScreen() {
   const [leader, ...rest] = leaderboard;
   const swipeHandlers = useTabSwipe(2);
 
+  // Which friend's photo viewer is open, and which of their 3 shots it
+  // opened on. Null means closed — see components/PhotoViewerModal.tsx.
+  const [viewer, setViewer] = useState<{ entry: LeaderboardEntry; index: number } | null>(null);
+  function openPhoto(entry: LeaderboardEntry, index: number) {
+    setViewer({ entry, index });
+  }
+
   return (
     <SafeAreaView style={styles.container} {...swipeHandlers}>
       <View style={styles.header}>
@@ -133,12 +141,18 @@ export default function FriendsScreen() {
             </Panel>
           )}
 
-          {leader && <LeaderRow entry={leader} isYou={leader.userId === userId} />}
+          {leader && <LeaderRow entry={leader} isYou={leader.userId === userId} onOpenPhoto={openPhoto} />}
 
           {rest.length > 0 && (
             <Panel style={styles.panel}>
               {rest.map((entry, index) => (
-                <RankRow key={entry.userId} entry={entry} rank={index + 2} isYou={entry.userId === userId} />
+                <RankRow
+                  key={entry.userId}
+                  entry={entry}
+                  rank={index + 2}
+                  isYou={entry.userId === userId}
+                  onOpenPhoto={openPhoto}
+                />
               ))}
             </Panel>
           )}
@@ -152,6 +166,12 @@ export default function FriendsScreen() {
           )}
         </ScrollView>
       )}
+
+      <PhotoViewerModal
+        entry={viewer?.entry ?? null}
+        initialIndex={viewer?.index ?? 0}
+        onClose={() => setViewer(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -167,7 +187,9 @@ function todayStatusLabel(entry: LeaderboardEntry): string {
 // being the top row of a plain list. Still just one accent color, no
 // trophy/gradient. The signed-in user's own row (whether or not they're
 // #1) additionally gets a background tint so it's instantly findable.
-function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }) {
+type RowProps = { entry: LeaderboardEntry; isYou: boolean; onOpenPhoto: (entry: LeaderboardEntry, index: number) => void };
+
+function LeaderRow({ entry, isYou, onOpenPhoto }: RowProps) {
   return (
     <Panel style={[styles.leaderPanel, isYou && styles.youTint]}>
       <View style={styles.leaderRow}>
@@ -176,7 +198,13 @@ function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }
           <View>
             <BodyText style={styles.leaderName}>{isYou ? 'You' : entry.displayName}</BodyText>
             <Label>{todayStatusLabel(entry)}</Label>
-            {entry.playedToday && <FriendThumbnails urls={entry.thumbnailUrls} style={styles.thumbnails} />}
+            {entry.playedToday && (
+              <FriendThumbnails
+                urls={entry.thumbnailUrls}
+                style={styles.thumbnails}
+                onPressPhoto={(index) => onOpenPhoto(entry, index)}
+              />
+            )}
           </View>
         </View>
         <View style={styles.streakGroup}>
@@ -188,7 +216,7 @@ function LeaderRow({ entry, isYou }: { entry: LeaderboardEntry; isYou: boolean }
   );
 }
 
-function RankRow({ entry, rank, isYou }: { entry: LeaderboardEntry; rank: number; isYou: boolean }) {
+function RankRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: number }) {
   return (
     <View style={[styles.row, isYou && styles.youTint]}>
       <View style={styles.rowIdentity}>
@@ -196,7 +224,13 @@ function RankRow({ entry, rank, isYou }: { entry: LeaderboardEntry; rank: number
         <View>
           <BodyText style={styles.rowLabel}>{isYou ? 'You' : entry.displayName}</BodyText>
           <Label>{todayStatusLabel(entry)}</Label>
-          {entry.playedToday && <FriendThumbnails urls={entry.thumbnailUrls} style={styles.thumbnails} />}
+          {entry.playedToday && (
+            <FriendThumbnails
+              urls={entry.thumbnailUrls}
+              style={styles.thumbnails}
+              onPressPhoto={(index) => onOpenPhoto(entry, index)}
+            />
+          )}
         </View>
       </View>
       <View style={styles.streakGroup}>
@@ -227,6 +261,7 @@ const styles = StyleSheet.create({
   // sub-screen, and should read with the same weight as its peers.
   title: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   headerSpacer: {
     width: 32,
@@ -251,7 +286,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   link: {
-    fontFamily: fonts.primary,
+    ...fonts.primary,
     color: colors.textMuted,
     textAlign: 'center',
   },
@@ -294,9 +329,11 @@ const styles = StyleSheet.create({
   leaderRank: {
     color: colors.signal,
     width: 20,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   leaderName: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.value,
   },
   thumbnails: {
@@ -309,6 +346,8 @@ const styles = StyleSheet.create({
   },
   leaderStreak: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   row: {
     flexDirection: 'row',
@@ -325,14 +364,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   rowLabel: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
   rank: {
     width: 16,
+    fontVariant: ['tabular-nums'],
   },
   streakValue: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
     fontVariant: ['tabular-nums'],
   },

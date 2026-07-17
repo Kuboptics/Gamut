@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   label: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.label,
     textTransform: 'uppercase',
     letterSpacing: 1,

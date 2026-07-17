@@ -260,6 +260,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   scoringBody: {
     flex: 1,
@@ -280,6 +281,7 @@ const styles = StyleSheet.create({
   // One (HeroText), green/red matching the Today completed state.
   verdict: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
     marginBottom: spacing.sm,
   },
   pass: {
@@ -292,6 +294,8 @@ const styles = StyleSheet.create({
   // readout treatment (that's reserved for the hex code and countdown).
   average: {
     fontSize: typeScale.display,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   scoreList: {
     marginTop: spacing.xl,
@@ -309,8 +313,9 @@ const styles = StyleSheet.create({
   },
   // A small list-row value, not a hero moment — Work Sans (BodyText).
   scoreValue: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.value,
+    fontVariant: ['tabular-nums'],
   },
   actions: {
     paddingHorizontal: spacing.xl,

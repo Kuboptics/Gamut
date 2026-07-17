@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -276,6 +277,8 @@ function CompletedToday({ record, countdownMs }: { record: DayRecord; countdownM
       </Panel>
 
       <Panel style={styles.controlsPanel}>
+        <Label style={styles.breakdownHeader}>Breakdown</Label>
+
         <View style={styles.photoStrip}>
           {record.photoUris.map((uri, index) => {
             const score = record.scores[index];
@@ -296,7 +299,10 @@ function CompletedToday({ record, countdownMs }: { record: DayRecord; countdownM
           })}
         </View>
 
-        <Label style={styles.roundInfo}>Locked until tomorrow&apos;s color</Label>
+        <View style={styles.lockedRow}>
+          <Ionicons name="lock-closed" size={12} color={colors.signal} />
+          <Label style={styles.lockedLabel}>Locked until tomorrow&apos;s color</Label>
+        </View>
       </Panel>
     </SafeAreaView>
   );
@@ -323,9 +329,12 @@ const styles = StyleSheet.create({
   wordmark: {
     alignItems: 'flex-start',
   },
-  // Today's screen title, in effect — the brand wordmark gets the same
-  // hero treatment every other screen's title uses.
+  // Today's screen title, in effect — the brand wordmark. Unlike every
+  // other HeroText usage, this one stays Fugaz One (fonts.wordmark),
+  // the one deliberate exception to the app-wide switch to the system
+  // font — see constants/theme.ts.
   wordmarkTitle: {
+    ...fonts.wordmark,
     fontSize: 22,
   },
   signature: {
@@ -373,6 +382,7 @@ const styles = StyleSheet.create({
   tickBR: { bottom: 0, right: 0, borderBottomWidth: 1, borderRightWidth: 1 },
   specimenHex: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   // Deliberately understated: muted color, small size, capped to two
   // lines, with breathing room from the color name above it — flavor
@@ -389,6 +399,7 @@ const styles = StyleSheet.create({
   // it's Fugaz One (HeroText) rather than the Work Sans readout treatment.
   verdict: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
     marginTop: spacing.sm,
   },
   verdictPass: {
@@ -488,7 +499,22 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   photoScoreValue: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.label,
+    fontVariant: ['tabular-nums'],
+  },
+  // A small header above the per-photo scores, once the round's in — the
+  // Label style already used for every other small caption in the app.
+  breakdownHeader: {
+    textAlign: 'center',
+  },
+  lockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  lockedLabel: {
+    color: colors.signal,
   },
 });

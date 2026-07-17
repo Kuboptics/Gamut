@@ -77,6 +77,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
     textAlign: 'center',
   },
   rules: {

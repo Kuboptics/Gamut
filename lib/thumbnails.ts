@@ -14,33 +14,50 @@
 // at that path from a day they didn't play are simply never requested.
 
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image } from 'react-native';
 
 import { supabase } from './supabase';
 
 const BUCKET = 'thumbnails';
 
-// Sized to stay sharp at the leaderboard's display size (56pt squares,
-// see components/FriendThumbnails.tsx) even on a 3x-density phone screen
-// (56 * 3 = 168px needed; 240px leaves comfortable headroom), while
-// staying heavily compressed — only 3 of these ever exist per user
-// (overwritten each round), so a modest size increase is still tiny.
-const THUMBNAIL_WIDTH = 240;
-const THUMBNAIL_QUALITY = 0.35;
+// This one file gets used two ways: a small 56pt square on the
+// leaderboard row (see components/FriendThumbnails.tsx) and a
+// full-screen resizeMode="contain" viewer (see components/
+// PhotoViewerModal.tsx) — the viewer is what sets the real size floor
+// here, not the leaderboard square. 1080 on the long edge is comfortably
+// sharp full-screen on any current phone while staying a modest file
+// size at 0.85 JPEG quality; still only 3 of these per user, overwritten
+// each round, so the larger size doesn't accumulate.
+const THUMBNAIL_LONG_EDGE = 1080;
+const THUMBNAIL_QUALITY = 0.85;
 
 export function thumbnailPath(userId: string, slot: number): string {
   return `${userId}/${slot}.jpg`;
 }
 
-// Shrinks and compresses one photo down to a small JPEG file, the same
+// react-native's own Image.getSize, promisified — no new dependency.
+// Needed because expo-image-manipulator's resize only clamps whichever
+// dimension you give it (e.g. `{ width: 1080 }` on a portrait photo
+// would leave its taller height uncapped) — measuring first lets
+// prepareThumbnail below clamp whichever dimension is actually longest.
+function getImageSize(uri: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    Image.getSize(uri, (width, height) => resolve({ width, height }), reject);
+  });
+}
+
+// Shrinks and compresses one photo down to a JPEG file, the same
 // expo-image-manipulator call app/preview.tsx already uses for sampling,
-// just smaller/lower-quality and saved to a file (rather than base64)
-// since this copy needs to be uploaded as bytes.
+// just resized/compressed differently and saved to a file (rather than
+// base64) since this copy needs to be uploaded as bytes.
 async function prepareThumbnail(photoUri: string): Promise<string> {
-  const manipulated = await ImageManipulator.manipulateAsync(
-    photoUri,
-    [{ resize: { width: THUMBNAIL_WIDTH } }],
-    { compress: THUMBNAIL_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
-  );
+  const { width, height } = await getImageSize(photoUri);
+  const resize = width >= height ? { width: THUMBNAIL_LONG_EDGE } : { height: THUMBNAIL_LONG_EDGE };
+
+  const manipulated = await ImageManipulator.manipulateAsync(photoUri, [{ resize }], {
+    compress: THUMBNAIL_QUALITY,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
   return manipulated.uri;
 }
 

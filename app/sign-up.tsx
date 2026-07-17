@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   link: {
-    fontFamily: fonts.primary,
+    ...fonts.primary,
     color: colors.textMuted,
     textAlign: 'center',
   },

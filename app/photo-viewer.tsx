@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   closeLabel: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
 });

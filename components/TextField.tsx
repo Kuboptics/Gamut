@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: fonts.primary,
+    ...fonts.primary,
     fontSize: typeScale.button,
     color: colors.textPrimary,
     backgroundColor: colors.surface,

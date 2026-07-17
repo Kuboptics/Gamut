@@ -152,6 +152,7 @@ const styles = StyleSheet.create({
   // (HeroText), green/red for pass/fail.
   verdict: {
     fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
   },
   pass: {
     color: colors.positive,
@@ -196,7 +197,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   photoScore: {
-    fontFamily: fonts.primarySemiBold,
+    ...fonts.primarySemiBold,
     fontSize: typeScale.value,
+    fontVariant: ['tabular-nums'],
   },
 });

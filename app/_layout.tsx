@@ -1,5 +1,4 @@
 import { FugazOne_400Regular } from '@expo-google-fonts/fugaz-one';
-import { WorkSans_400Regular, WorkSans_600SemiBold, WorkSans_700Bold } from '@expo-google-fonts/work-sans';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -18,16 +17,15 @@ import { SyncProvider } from '../context/SyncContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { hasSeenIntro } from '../lib/introStorage';
 
-// Keep the splash screen up until both font families have loaded, so we
-// never flash default system text before switching to the real ones.
+// Keep the splash screen up until Fugaz One (the wordmark font) has
+// loaded, so we never flash default system text before switching to it.
+// Everything else already uses the system font, so there's nothing else
+// to wait on.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     FugazOne_400Regular,
-    WorkSans_400Regular,
-    WorkSans_600SemiBold,
-    WorkSans_700Bold,
   });
   const reducedMotion = useReducedMotion();
 
