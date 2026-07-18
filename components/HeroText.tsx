@@ -6,8 +6,8 @@ import { colors, fonts } from '../constants/theme';
 // big score/percentage, the streak number, and screen titles (the
 // PASS/FAIL verdict word counts as a title-tier moment too). Never body
 // copy or small labels — see constants/theme.ts for the full font rule.
-// The one exception is the Gamut wordmark on the Today tab, which stays
-// Fugaz One (see app/(tabs)/index.tsx's wordmarkTitle style).
+// The one exception is the Gamut wordmark in the shared header, which
+// stays Fugaz One (see components/AppHeader.tsx's wordmarkTitle style).
 export function HeroText({ style, ...props }: TextProps) {
   return <Text {...props} style={[styles.base, style]} />;
 }

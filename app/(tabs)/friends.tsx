@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BodyText } from '../../components/BodyText';
 import { FlameIcon } from '../../components/FlameIcon';
 import { FriendThumbnails } from '../../components/FriendThumbnails';
-import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
@@ -90,21 +89,15 @@ export default function FriendsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} {...swipeHandlers}>
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <View style={styles.headerText}>
-          <HeroText style={styles.title}>Friends</HeroText>
-        </View>
-        {userId ? (
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
+      {userId && (
+        <View style={styles.manageRow}>
           <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
             <Ionicons name="person-add-outline" size={20} color={colors.textMuted} />
             {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
           </PressableOpacity>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
-      </View>
+        </View>
+      )}
 
       {!isAuthLoaded ? null : !userId ? (
         <View style={styles.signedOutBody}>
@@ -241,25 +234,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
+  // Just the manage-friends affordance now that the screen title is gone
+  // (the shared header above the tabs covers that) — right-aligned, its
+  // own small row rather than a full header bar.
+  manageRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-  },
-  headerText: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  // Same size as Progress/Settings' titles — this is a tab root, not a
-  // sub-screen, and should read with the same weight as its peers.
-  title: {
-    fontSize: typeScale.specimen,
-    letterSpacing: -0.5,
-  },
-  headerSpacer: {
-    width: 32,
+    paddingVertical: spacing.sm,
   },
   manageButton: {
     width: 32,

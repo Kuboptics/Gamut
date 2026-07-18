@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,45 +33,6 @@ function todayKey(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-// How many milliseconds are left until the next local midnight, which is
-// when tomorrow's target color takes over.
-function msUntilNextMidnight(): number {
-  const now = new Date();
-  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  return nextMidnight.getTime() - now.getTime();
-}
-
-function formatCountdown(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-}
-
-// The wordmark + live countdown-to-next-drop — identical in both Today
-// states, so the screen reads as one instrument no matter which state
-// it's showing. The countdown value is one of the app's two data
-// readouts (see ReadoutText) — the daily-drop timer.
-function TopBar({ countdownMs }: { countdownMs: number }) {
-  return (
-    <View style={styles.topBar}>
-      <View style={styles.wordmark}>
-        <HeroText style={styles.wordmarkTitle}>Gamut</HeroText>
-        <Label style={styles.signature}>by Kuboptics</Label>
-      </View>
-      <View style={styles.countdown}>
-        <View style={styles.liveDot} />
-        <View>
-          <Label style={styles.countdownLabel}>Next drop</Label>
-          <ReadoutText style={styles.countdownValue}>{formatCountdown(countdownMs)}</ReadoutText>
-        </View>
-      </View>
-    </View>
-  );
 }
 
 // How far the brackets sit outside the swatch's own edges — the wrapper
@@ -229,33 +190,19 @@ function ApertureMark() {
 // cases.
 export default function TodayScreen() {
   const { history } = useHistory();
-  const [countdownMs, setCountdownMs] = useState(msUntilNextMidnight());
-
-  // Tick the countdown once a second — shared by both states.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdownMs(msUntilNextMidnight());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const todayRecord = history[todayKey()];
   const swipeHandlers = useTabSwipe(0);
 
   return (
     <View style={styles.swipeArea} {...swipeHandlers}>
-      {todayRecord ? (
-        <CompletedToday record={todayRecord} countdownMs={countdownMs} />
-      ) : (
-        <CaptureToday countdownMs={countdownMs} />
-      )}
+      {todayRecord ? <CompletedToday record={todayRecord} /> : <CaptureToday />}
     </View>
   );
 }
 
 // State 1: no round recorded for today yet — the capture flow, from an
 // empty round through banking each of the 3 photos.
-function CaptureToday({ countdownMs }: { countdownMs: number }) {
+function CaptureToday() {
   const router = useRouter();
   const { slots, isLoaded } = useRound();
   const target = getDailyTarget();
@@ -288,9 +235,7 @@ function CaptureToday({ countdownMs }: { countdownMs: number }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TopBar countdownMs={countdownMs} />
-
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <SpecimenCard
         hex={target.hex}
         colorName={colorName}
@@ -328,15 +273,13 @@ function CaptureToday({ countdownMs }: { countdownMs: number }) {
 // drop. This is final: submitting locked the day, so tapping a photo
 // just views it larger (as any past day's photo does from Calendar) —
 // there's no retaking it anymore.
-function CompletedToday({ record, countdownMs }: { record: DayRecord; countdownMs: number }) {
+function CompletedToday({ record }: { record: DayRecord }) {
   const router = useRouter();
   const colorName = nameColor(record.hue, record.saturation, record.lightness);
   const passed = record.outcome === 'passed';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TopBar countdownMs={countdownMs} />
-
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <SpecimenCard
         hex={record.hex}
         colorName={colorName}
@@ -390,49 +333,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    // Fixed height, never shrinks — the specimen panel below flexes
-    // instead, so its content can never push up over this row.
-    flexShrink: 0,
-  },
-  wordmark: {
-    alignItems: 'flex-start',
-  },
-  // Today's screen title, in effect — the brand wordmark. Unlike every
-  // other HeroText usage, this one stays Fugaz One (fonts.wordmark),
-  // the one deliberate exception to the app-wide switch to the system
-  // font — see constants/theme.ts.
-  wordmarkTitle: {
-    ...fonts.wordmark,
-    fontSize: 22,
-  },
-  signature: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  countdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    backgroundColor: colors.signal,
-  },
-  countdownLabel: {
-    textAlign: 'right',
-  },
-  countdownValue: {
-    fontSize: typeScale.value,
-    textAlign: 'right',
-  },
-  // The flex:1 measuring area between TopBar and controlsPanel — plain,
+  // The flex:1 measuring area between the shared header and controlsPanel
+  // — plain,
   // no surface/border of its own. SpecimenCard measures this via onLayout
   // to know how much room the card actually has, then centers the
   // card (sized to its own content, see specimenPanel below) inside it —

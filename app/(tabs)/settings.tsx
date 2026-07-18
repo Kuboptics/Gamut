@@ -8,7 +8,6 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 import { ActionButton } from '../../components/ActionButton';
 import { BodyText } from '../../components/BodyText';
-import { HeroText } from '../../components/HeroText';
 import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
@@ -150,11 +149,7 @@ export default function SettingsScreen() {
   const swipeHandlers = useTabSwipe(3);
 
   return (
-    <SafeAreaView style={styles.container} {...swipeHandlers}>
-      <View style={styles.header}>
-        <HeroText style={styles.title}>Settings</HeroText>
-      </View>
-
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Panel style={styles.body}>
           <View style={styles.row}>
@@ -309,15 +304,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-  },
-  title: {
-    fontSize: typeScale.specimen,
-    letterSpacing: -0.5,
   },
   scrollContent: {
     paddingBottom: spacing.xxl,

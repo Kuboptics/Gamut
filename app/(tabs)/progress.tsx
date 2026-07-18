@@ -94,11 +94,7 @@ export default function ProgressScreen() {
   const swipeHandlers = useTabSwipe(1);
 
   return (
-    <SafeAreaView style={styles.container} {...swipeHandlers}>
-      <View style={styles.header}>
-        <HeroText style={styles.title}>Progress</HeroText>
-      </View>
-
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Panel style={styles.streakPanel}>
           {!streakLoaded ? (
@@ -196,15 +192,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-  },
-  title: {
-    fontSize: typeScale.specimen,
-    letterSpacing: -0.5,
   },
   scrollContent: {
     paddingBottom: spacing.xxl,
