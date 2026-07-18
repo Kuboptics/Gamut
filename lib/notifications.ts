@@ -1,9 +1,10 @@
-// Local (on-device) daily reminder notifications. This does not use
-// push/remote notifications at all — everything here is scheduled and
-// delivered entirely on the phone, which is what keeps it working in
-// Expo Go (Expo Go dropped support for *remote* push since SDK 53, but
-// local scheduling is unaffected).
+// Local (on-device) daily reminder notifications, plus remote push
+// token registration for the friend-nudge feature. The local reminder
+// functions below are unaffected by Expo Go's SDK 53+ removal of
+// *remote* push support — only getExpoPushTokenAsync (and receiving an
+// actual push) requires a dev-client/EAS build.
 
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -50,6 +51,10 @@ export async function scheduleDailyReminder(hour: number, minute: number): Promi
     content: {
       title: 'Gamut',
       body: "Today's color is waiting to be found.",
+      // Lets a tap handler tell this apart from a remote friend-nudge
+      // push, which carries a different `type` — see
+      // hooks/useNotificationTapDeepLink.ts.
+      data: { type: 'daily-reminder' },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -61,4 +66,21 @@ export async function scheduleDailyReminder(hour: number, minute: number): Promi
 
 export async function cancelDailyReminder(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
+}
+
+// Fetches this device's Expo push token, for remote (friend-nudge)
+// notifications — requires a dev-client/EAS build and a real device;
+// returns null on a simulator, in Expo Go, or if anything else goes
+// wrong, rather than throwing. Callers treat "no token" as a normal,
+// silent no-op state (see lib/pushTokens.ts).
+export async function getExpoPushTokenAsync(): Promise<string | null> {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  if (!projectId) return null;
+
+  try {
+    const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+    return data;
+  } catch {
+    return null;
+  }
 }

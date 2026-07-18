@@ -21,6 +21,8 @@ import { useReminder } from '../../context/ReminderContext';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
+import { getExpoPushTokenAsync, requestNotificationPermissionAsync } from '../../lib/notifications';
+import { fetchNotificationPreference, savePushToken, setNotificationsEnabled } from '../../lib/pushTokens';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
 
@@ -75,6 +77,16 @@ export default function SettingsScreen() {
   const [profileLoadError, setProfileLoadError] = useState(false);
   const nameInputRef = useRef<TextInput>(null);
 
+  // The "a friend just submitted" push toggle — separate from the local
+  // Daily Reminder above, since this one is backed by Supabase (needs
+  // sign-in) rather than on-device storage. Starts false so it never
+  // flashes on before the real saved preference loads.
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
+  const [notificationsLoaded, setNotificationsLoaded] = useState(false);
+  const [notificationsPermissionDenied, setNotificationsPermissionDenied] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+
   const userId = user?.id;
   const userEmail = user?.email;
 
@@ -95,6 +107,68 @@ export default function SettingsScreen() {
   }, [userId, userEmail]);
 
   useFocusEffect(refreshProfile);
+
+  const refreshNotificationPreference = useCallback(() => {
+    if (!userId) {
+      setNotificationsLoaded(true); // signed out: nothing to load, but stop showing a disabled switch forever
+      return;
+    }
+    setNotificationsLoaded(false);
+    fetchNotificationPreference(userId)
+      .then((preference) => setNotificationsEnabledState(preference.enabled))
+      .catch(() => {
+        // Offline/failed — leave the switch at its last known value
+        // rather than guessing.
+      })
+      .finally(() => setNotificationsLoaded(true));
+  }, [userId]);
+
+  useFocusEffect(refreshNotificationPreference);
+
+  // Turning on requests permission first (this is the one moment the app
+  // asks for it — see CLAUDE.md), then registers this device's push
+  // token before flipping the preference on, so the Edge Function
+  // (supabase/functions/notify-friends) always has somewhere to send to
+  // by the time it can fire. Turning off just flips the preference —
+  // the token is left in place since the Edge Function checks
+  // notifications_enabled before ever reading it.
+  async function handleToggleNotifications(next: boolean) {
+    if (!user || isSavingNotifications) return;
+    setNotificationsError(null);
+
+    if (!next) {
+      setNotificationsEnabledState(false);
+      setIsSavingNotifications(true);
+      try {
+        await setNotificationsEnabled(user.id, false);
+      } catch {
+        setNotificationsError("Couldn't save that — try again.");
+        setNotificationsEnabledState(true); // revert the optimistic flip
+      } finally {
+        setIsSavingNotifications(false);
+      }
+      return;
+    }
+
+    setIsSavingNotifications(true);
+    try {
+      const granted = await requestNotificationPermissionAsync();
+      if (!granted) {
+        setNotificationsPermissionDenied(true);
+        return;
+      }
+      setNotificationsPermissionDenied(false);
+
+      const token = await getExpoPushTokenAsync();
+      if (token) await savePushToken(user.id, token);
+      await setNotificationsEnabled(user.id, true);
+      setNotificationsEnabledState(true);
+    } catch {
+      setNotificationsError("Couldn't save that — try again.");
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  }
 
   const trimmedNameInput = displayNameInput.trim();
   // Drives the Save button's fade — true only once the field actually
@@ -239,6 +313,22 @@ export default function SettingsScreen() {
                   }
                 />
                 {nameError && <BodyText style={styles.error}>{nameError}</BodyText>}
+
+                <View style={styles.row}>
+                  <BodyText style={styles.rowLabel}>Friend Activity</BodyText>
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={handleToggleNotifications}
+                    disabled={!notificationsLoaded || isSavingNotifications}
+                    trackColor={{ false: colors.border, true: colors.textPrimary }}
+                    thumbColor={colors.background}
+                    ios_backgroundColor={colors.border}
+                  />
+                </View>
+                {notificationsPermissionDenied && (
+                  <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
+                )}
+                {notificationsError && <BodyText style={styles.error}>{notificationsError}</BodyText>}
 
                 <View style={styles.authButtonRow}>
                   <ActionButton label="Sign Out" tone="signal" onPress={() => signOut()} />

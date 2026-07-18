@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { IntroModal } from '../components/IntroModal';
+import { PushNotificationSetup } from '../components/PushNotificationSetup';
 import { motionDuration } from '../constants/motion';
 import { colors } from '../constants/theme';
 import { AuthProvider } from '../context/AuthContext';
@@ -69,6 +70,7 @@ export default function RootLayout() {
                     }}
                   />
                   <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
+                  <PushNotificationSetup />
                 </SyncProvider>
               </ReminderProvider>
             </StreakProvider>

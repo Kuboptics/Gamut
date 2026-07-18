@@ -43,7 +43,8 @@
           "photosPermission": "Gamut needs your photo library to pick a photo of today's color."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-dev-client"
     ],
     "experiments": {
       "reactCompiler": true
