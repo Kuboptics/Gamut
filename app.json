@@ -51,10 +51,7 @@
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/e637dc1d-4880-4605-a507-d6cc10a6b2b1",
-      "requestHeaders": {
-        "expo-channel-name": "preview"
-      }
+      "url": "https://u.expo.dev/e637dc1d-4880-4605-a507-d6cc10a6b2b1"
     },
     "extra": {
       "eas": {

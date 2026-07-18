@@ -3,6 +3,16 @@
 // has round_results for), so "streak" means the exact same thing no
 // matter which account or device is asking.
 
+// The day every streak restarts from — any round played on or before this
+// date is excluded from the trailing-run count in computeStreak, so
+// nobody carries a pre-existing streak forward once this ships. This only
+// affects the derived *streak number*: round_results/HistoryContext
+// (Calendar, day-detail, friends' photo history) are read directly, never
+// through computeStreak, so no play history is hidden, altered, or
+// deleted by this. Set to the day before this shipped, so the first day
+// it's live is the first day that counts toward a new streak.
+export const STREAK_RESET_DATE = '2026-07-17';
+
 // True if `nextDateKey` is exactly one calendar day after `dateKey`.
 function isNextDay(dateKey: string, nextDateKey: string): boolean {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -31,17 +41,20 @@ export function todayKey(): string {
 // day is older than yesterday, a full day was skipped since then, so the
 // streak is broken (0) no matter how long the run before it was. Without
 // this check a streak earned days ago would silently freeze forever
-// instead of resetting once a day gets missed.
+// instead of resetting once a day gets missed. Days on or before
+// STREAK_RESET_DATE are dropped before any of this runs, so a streak
+// earned before the reset can never carry forward past it.
 export function computeStreak(playedDateKeysAscending: string[], today: string = todayKey()): number {
-  if (playedDateKeysAscending.length === 0) return 0;
+  const eligible = playedDateKeysAscending.filter((dateKey) => dateKey > STREAK_RESET_DATE);
+  if (eligible.length === 0) return 0;
 
-  const lastPlayed = playedDateKeysAscending[playedDateKeysAscending.length - 1];
+  const lastPlayed = eligible[eligible.length - 1];
   const isStillCurrent = lastPlayed === today || isNextDay(lastPlayed, today);
   if (!isStillCurrent) return 0;
 
   let streak = 0;
   let lastPlayedDateKey: string | null = null;
-  for (const dateKey of playedDateKeysAscending) {
+  for (const dateKey of eligible) {
     const isConsecutive = lastPlayedDateKey !== null && isNextDay(lastPlayedDateKey, dateKey);
     streak = isConsecutive ? streak + 1 : 1;
     lastPlayedDateKey = dateKey;
