@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
+import { getDailyTarget } from '../../lib/dailyColor';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
 import { getExpoPushTokenAsync, requestNotificationPermissionAsync } from '../../lib/notifications';
 import { fetchNotificationPreference, savePushToken, setNotificationsEnabled } from '../../lib/pushTokens';
@@ -64,6 +65,7 @@ export default function SettingsScreen() {
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
   const router = useRouter();
   const { user, isLoaded: isAuthLoaded, signOut } = useAuth();
+  const todayHue = getDailyTarget().hue;
 
   const [showIntro, setShowIntro] = useState(false);
 
@@ -225,7 +227,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Panel style={styles.body}>
+        <Panel style={styles.body} hue={todayHue}>
           <View style={styles.row}>
             <View style={styles.rowLabelGroup}>
               {/* A small red "active" dot — one of this screen's signal
@@ -279,7 +281,7 @@ export default function SettingsScreen() {
         </Panel>
 
         {isAuthLoaded && (
-          <Panel style={styles.accountPanel}>
+          <Panel style={styles.accountPanel} hue={todayHue}>
             <Label>Account</Label>
 
             {user ? (
@@ -348,7 +350,7 @@ export default function SettingsScreen() {
           </Panel>
         )}
 
-        <Panel style={styles.howItWorksPanel}>
+        <Panel style={styles.howItWorksPanel} hue={todayHue}>
           <View style={styles.howItWorksHeader}>
             <Label>How It Works</Label>
             <PressableOpacity onPress={() => setShowIntro(true)}>

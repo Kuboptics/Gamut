@@ -16,6 +16,7 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
+import { getDailyTarget } from '../../lib/dailyColor';
 import { fetchFriends, fetchIncomingRequests } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
 
@@ -30,6 +31,7 @@ export default function FriendsScreen() {
   const router = useRouter();
   const { user, isLoaded: isAuthLoaded } = useAuth();
   const userId = user?.id ?? null;
+  const todayHue = getDailyTarget().hue;
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [hasFriends, setHasFriends] = useState(false);
@@ -101,7 +103,7 @@ export default function FriendsScreen() {
 
       {!isAuthLoaded ? null : !userId ? (
         <View style={styles.signedOutBody}>
-          <Panel style={styles.panel}>
+          <Panel style={styles.panel} hue={todayHue}>
             <Label>Friends</Label>
             <BodyText style={styles.note}>
               Sign in to see your friends leaderboard — the game itself never requires it.
@@ -127,14 +129,14 @@ export default function FriendsScreen() {
           }
         >
           {loadError && (
-            <Panel style={styles.panel}>
+            <Panel style={styles.panel} hue={todayHue}>
               <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
               <PrimaryButton label="Try Again" onPress={refresh} />
             </Panel>
           )}
 
           {leaderboard.length > 0 && (
-            <Panel style={styles.panel}>
+            <Panel style={styles.panel} hue={todayHue}>
               {leaderboard.map((entry, index) => (
                 <LeaderboardRow
                   key={entry.userId}
@@ -148,7 +150,7 @@ export default function FriendsScreen() {
           )}
 
           {!hasFriends && (
-            <Panel style={styles.panel}>
+            <Panel style={styles.panel} hue={todayHue}>
               <Label>No Friends Yet</Label>
               <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
               <PrimaryButton label="Manage Friends" onPress={() => router.push('/friends/manage')} />

@@ -59,7 +59,17 @@ const CARD_GAP = spacing.lg;
 // width/height is smaller — so the swatch inside it shrinks to fit on
 // short screens without ever growing past the wrapper, and therefore
 // never past the brackets either.
-function SpecimenCard({ hex, colorName, footer }: { hex: string; colorName: string; footer: ReactNode }) {
+function SpecimenCard({
+  hex,
+  hue,
+  colorName,
+  footer,
+}: {
+  hex: string;
+  hue: number;
+  colorName: string;
+  footer: ReactNode;
+}) {
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [footerHeight, setFooterHeight] = useState(0);
 
@@ -82,12 +92,12 @@ function SpecimenCard({ hex, colorName, footer }: { hex: string; colorName: stri
 
   return (
     <View style={styles.specimenArea} onLayout={handleAreaLayout}>
-      <Panel style={styles.specimenPanel}>
+      <Panel style={styles.specimenPanel} hue={hue}>
         <View style={[styles.bracketWrapper, { width: wrapperSize, height: wrapperSize }]}>
-          <View style={[styles.tick, styles.tickTL]} />
-          <View style={[styles.tick, styles.tickTR]} />
-          <View style={[styles.tick, styles.tickBL]} />
-          <View style={[styles.tick, styles.tickBR]} />
+          <View style={[styles.tick, styles.tickTL, { borderColor: hex }]} />
+          <View style={[styles.tick, styles.tickTR, { borderColor: hex }]} />
+          <View style={[styles.tick, styles.tickBL, { borderColor: hex }]} />
+          <View style={[styles.tick, styles.tickBR, { borderColor: hex }]} />
           <View style={[styles.swatchSlot, { width: swatchSize, height: swatchSize }]}>
             <ColorSwatch hex={hex} size="large">
               <SwatchLabel name={colorName} hex={hex} />
@@ -238,6 +248,7 @@ function CaptureToday() {
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <SpecimenCard
         hex={target.hex}
+        hue={target.hue}
         colorName={colorName}
         footer={
           <BodyText style={styles.colorFact} numberOfLines={2}>
@@ -246,7 +257,7 @@ function CaptureToday() {
         }
       />
 
-      <Panel style={styles.controlsPanel}>
+      <Panel style={styles.controlsPanel} hue={target.hue}>
         {!isLoaded && <Label style={styles.roundInfo}>Loading…</Label>}
 
         {isLoaded && (
@@ -282,6 +293,7 @@ function CompletedToday({ record }: { record: DayRecord }) {
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <SpecimenCard
         hex={record.hex}
+        hue={record.hue}
         colorName={colorName}
         footer={
           <HeroText style={[styles.verdict, passed ? styles.verdictPass : styles.verdictFail]}>
@@ -290,7 +302,7 @@ function CompletedToday({ record }: { record: DayRecord }) {
         }
       />
 
-      <Panel style={styles.controlsPanel}>
+      <Panel style={styles.controlsPanel} hue={record.hue}>
         <Label style={styles.breakdownHeader}>Breakdown</Label>
 
         <View style={styles.photoStrip}>

@@ -13,6 +13,7 @@ import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { useStreak } from '../../context/StreakContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { contrastTextColor } from '../../lib/color';
+import { getDailyTarget } from '../../lib/dailyColor';
 
 // A YYYY-MM-DD key in local time — matches the key shape HistoryContext
 // stores records under.
@@ -85,6 +86,7 @@ export default function ProgressScreen() {
   const { currentStreak, isLoaded: streakLoaded } = useStreak();
   const { history } = useHistory();
   const isActive = streakLoaded && currentStreak > 0;
+  const todayHue = getDailyTarget().hue;
 
   const today = new Date();
   const year = today.getFullYear();
@@ -96,7 +98,7 @@ export default function ProgressScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Panel style={styles.streakPanel}>
+        <Panel style={styles.streakPanel} hue={todayHue}>
           {!streakLoaded ? (
             <Label>Loading…</Label>
           ) : (
@@ -112,7 +114,7 @@ export default function ProgressScreen() {
           )}
         </Panel>
 
-        <Panel style={styles.calendarPanel}>
+        <Panel style={styles.calendarPanel} hue={todayHue}>
           <BodyText style={styles.month}>{monthLabel}</BodyText>
 
           <View style={styles.weekRow}>

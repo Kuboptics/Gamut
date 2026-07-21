@@ -16,6 +16,7 @@ import { ReadoutText } from '../../components/ReadoutText';
 import { TextField } from '../../components/TextField';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { getDailyTarget } from '../../lib/dailyColor';
 import {
   ensureProfile,
   fetchFriends,
@@ -36,6 +37,7 @@ import {
 export default function ManageFriendsScreen() {
   const { user } = useAuth();
   const userId = user!.id;
+  const todayHue = getDailyTarget().hue;
 
   const [myCode, setMyCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -153,13 +155,13 @@ export default function ManageFriendsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {loadError && (
-          <Panel style={styles.panel}>
+          <Panel style={styles.panel} hue={todayHue}>
             <BodyText style={styles.error}>{"Couldn't load your friends data."}</BodyText>
             <PrimaryButton label="Try Again" onPress={refresh} />
           </Panel>
         )}
 
-        <Panel style={styles.panel}>
+        <Panel style={styles.panel} hue={todayHue}>
           <Label>Your Code</Label>
           {myCode ? (
             <>
@@ -174,7 +176,7 @@ export default function ManageFriendsScreen() {
           )}
         </Panel>
 
-        <Panel style={styles.panel}>
+        <Panel style={styles.panel} hue={todayHue}>
           <Label>Add a Friend</Label>
           <TextField
             label="Their Code"
@@ -197,7 +199,7 @@ export default function ManageFriendsScreen() {
           />
         </Panel>
 
-        <Panel style={styles.panel}>
+        <Panel style={styles.panel} hue={todayHue}>
           <View style={styles.sectionHeader}>
             <Label>Requests</Label>
             {incoming.length > 0 && <View style={styles.countBadge} />}
@@ -246,7 +248,7 @@ export default function ManageFriendsScreen() {
           )}
         </Panel>
 
-        <Panel style={styles.panel}>
+        <Panel style={styles.panel} hue={todayHue}>
           <Label>Friends</Label>
           {removeError && <BodyText style={styles.error}>{removeError}</BodyText>}
           {friends.length === 0 ? (

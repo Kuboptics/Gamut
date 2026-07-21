@@ -22,7 +22,7 @@ The two people building this are learning to code. Favor clarity over cleverness
 - Target platform: iOS first. Keep code cross-platform-friendly, but do not spend effort polishing Android or web yet.
 
 ## Design system: monochrome instrument
-The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technical, with generous negative space. The idea that ties it together: the app is a black-and-white measuring instrument, and color is the specimen it examines. So the whole interface is monochrome, and the ONLY rich color on screen is the game content, which is today's target swatch, the player's captured color, and the score readout. Never add decorative color anywhere else.
+The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technical, with generous negative space. The idea that ties it together: the app is a black-and-white measuring instrument, and color is the specimen it examines. So the whole interface is monochrome apart from the game content and the daily-color chrome described below. Never add decorative color beyond what's listed here.
 
 ### Palette
 - Background: #000000
@@ -36,8 +36,9 @@ The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technica
   - PASS/FAIL: the red FAIL indicator, paired with a green PASS one.
   - The flame icon on the Progress tab (the streak symbol).
   - The "Locked until tomorrow's color" notice on the completed Today screen.
-- Game color content: dynamic, driven by the target and the shot. This is the only place hues are allowed to appear.
+- Game color content: dynamic, driven by the target and the shot. This is the only place hues are allowed to appear at full strength.
 - A couple of other narrow, deliberate exceptions to the monochrome rule live alongside the signal accent: the green PASS indicator above, and a warm red-orange flame icon on the Progress tab — both stay in the same restrained red/green family rather than introducing a random hue.
+- Daily-color theming: `Panel` (components/Panel.tsx) takes an optional `hue` prop that tints its background/border toward that day's color, via `getDailyAccent` in lib/dailyColor.ts. It always uses a fixed, tamed saturation/lightness — never the day's own brightness — so the tint stays legible no matter how loud or pale that day's actual color is; text colors never change. Every screen's panels pass today's hue (or, for a past day's record, that day's own hue), except auth/onboarding screens and the live camera/preview screens, which stay fully neutral. The one place the *pure*, full-strength daily color is used as chrome (not just game content) is the corner brackets framing the Today specimen card.
 - Friends leaderboard medals — the one other deliberate departure from monochrome+red: muted, desaturated metallic tones (never bright arcade gold/silver/bronze) mark the top 3 ranks. #B3944F (muted gold) marks #1 — replacing the signal-red treatment #1 used before this existed — #9CA3AA (muted silver) marks #2, and #8C6A4E (muted bronze) marks #3. Rank 4+ stays plain.
 
 ### Typography

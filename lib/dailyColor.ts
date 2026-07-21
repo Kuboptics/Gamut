@@ -71,3 +71,20 @@ export function getDailyTarget(date: Date = new Date()): DailyTarget {
 
   return { hue, saturation, lightness, rgb, hex: rgbToHex(rgb) };
 }
+
+// Tames today's hue into muted chrome for Panel (see components/Panel.tsx)
+// — same hue as the target, but a fixed saturation/lightness that never
+// depends on the day's own brightness. That's what keeps every day's tint
+// legible: no matter how loud or pale the actual target color is (see
+// HUE/SATURATION/LIGHTNESS_RANGE above), the chrome itself is always this
+// dark and this muted, so text on top of it stays readable every day.
+const CHROME_SATURATION = 35;
+const CHROME_BACKGROUND_LIGHTNESS = 10; // close to colors.surface's own depth
+const CHROME_BORDER_LIGHTNESS = 20;
+
+export function getDailyAccent(hue: number): { background: string; border: string } {
+  return {
+    background: rgbToHex(hslToRgb(hue, CHROME_SATURATION, CHROME_BACKGROUND_LIGHTNESS)),
+    border: rgbToHex(hslToRgb(hue, CHROME_SATURATION, CHROME_BORDER_LIGHTNESS)),
+  };
+}

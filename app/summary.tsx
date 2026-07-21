@@ -214,7 +214,7 @@ export default function SummaryScreen() {
         <HeroText style={styles.title}>Round Result</HeroText>
       </View>
 
-      <Panel style={styles.body}>
+      <Panel style={styles.body} hue={target.hue}>
         <Animated.View entering={revealStep(0)}>
           <ResultCelebration passed={passed}>
             <HeroText style={[styles.verdict, passed ? styles.pass : styles.fail]}>

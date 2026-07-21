@@ -78,7 +78,7 @@ export default function DayDetailScreen() {
           <Label>{colorName}</Label>
         </View>
 
-        <Panel style={styles.photoList}>
+        <Panel style={styles.photoList} hue={record.hue}>
           {record.scores.map((score, index) => {
             const photoUri = record.photoUris[index];
             const shotPassed = score >= PASS_THRESHOLD;
