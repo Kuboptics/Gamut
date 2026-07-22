@@ -48,11 +48,24 @@ function revealStep(step: number) {
 // here, at Submit, one photo at a time (see SummaryScreen below), rather
 // than silently in the background while shooting. Renders nothing
 // visible: PixelSampler is an invisible 1x1 WebView.
+//
+// One instance of this component stays mounted for the whole round —
+// SummaryScreen just feeds it a new `photoUri` as each score comes back,
+// instead of remounting it (via a changing `key`) per photo. Remounting
+// meant tearing down and recreating the native WebView underneath
+// PixelSampler three times in a row while "Scoring…" was on screen,
+// which was the cause of the loading-text jitter. Per-photo state below
+// resets on the `photoUri` effect instead of relying on a fresh mount.
 function PhotoScorer({ photoUri, targetRgb, onScore }: { photoUri: string; targetRgb: RGB; onScore: (score: number) => void }) {
   const [sampleImageUri, setSampleImageUri] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    // Reset this instance's per-photo state for the new photo — this is
+    // what a remount used to do implicitly. Without it, sampleImageUri
+    // would keep pointing at the previous photo's sample until this
+    // photo's manipulateAsync resolves.
+    setSampleImageUri(null);
 
     ImageManipulator.manipulateAsync(photoUri, [{ resize: { width: 200 } }], {
       base64: true,
@@ -201,9 +214,11 @@ export default function SummaryScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.scoringBody}>
-          <HeroText style={styles.title}>Scoring…</HeroText>
+          <View style={styles.scoringTextBox}>
+            <HeroText style={styles.title}>Scoring…</HeroText>
+          </View>
         </View>
-        <PhotoScorer key={scores.length} photoUri={photoUris[scores.length]} targetRgb={target.rgb} onScore={handleScore} />
+        <PhotoScorer photoUri={photoUris[scores.length]} targetRgb={target.rgb} onScore={handleScore} />
       </SafeAreaView>
     );
   }
@@ -262,8 +277,25 @@ const styles = StyleSheet.create({
     fontSize: typeScale.specimen,
     letterSpacing: -0.5,
   },
+  // Pinned to all four edges of the screen (position: absolute) instead
+  // of flex: 1. During the native-stack push transition, this
+  // container's parent is resized mid-animation, and a flex: 1 child
+  // recomputes its centering against each of those intermediate sizes,
+  // walking the "Scoring…" text up/down as it goes (this was the cause
+  // of the loading-screen jitter). Anchoring with absolute + inset 0
+  // measures against the screen's edges directly instead.
   scoringBody: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Fixed height, centered within the now-pinned scoringBody frame above.
+  scoringTextBox: {
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
   },
