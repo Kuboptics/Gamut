@@ -35,6 +35,39 @@ export function hslToRgb(h: number, s: number, l: number): RGB {
   };
 }
 
+// The inverse of hslToRgb: recovers hue/saturation/lightness from RGB.
+// Used to reconstruct a DailyTarget's hue/saturation/lightness when only
+// its hex is known (see lib/dailyColor.ts's precomputed color table) —
+// this won't reproduce the exact original float values bit-for-bit
+// (hslToRgb already rounded them down to 8-bit RGB before this reverses
+// it), but the difference is imperceptible and never changes which color
+// family lib/colorName.ts assigns.
+export function rgbToHsl({ r, g, b }: RGB): { h: number; s: number; l: number } {
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  const l = (max + min) / 2;
+
+  if (max === min) {
+    return { h: 0, s: 0, l: l * 100 }; // grey: hue is undefined, saturation is 0
+  }
+
+  const delta = max - min;
+  const s = delta / (1 - Math.abs(2 * l - 1));
+
+  let h: number;
+  if (max === rNorm) h = ((gNorm - bNorm) / delta) % 6;
+  else if (max === gNorm) h = (bNorm - rNorm) / delta + 2;
+  else h = (rNorm - gNorm) / delta + 4;
+
+  h *= 60;
+  if (h < 0) h += 360;
+
+  return { h, s: s * 100, l: l * 100 };
+}
+
 // Formats an RGB color as a hex string like "#3A7FD5".
 export function rgbToHex({ r, g, b }: RGB): string {
   const toHex = (channel: number) => channel.toString(16).padStart(2, '0');
