@@ -15,6 +15,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { ResultCelebration } from '../components/ResultCelebration';
 import { motionDuration, motionEasing, REVEAL_STAGGER_MS } from '../constants/motion';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { useAuth } from '../context/AuthContext';
 import { useHistory } from '../context/HistoryContext';
 import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { useSync } from '../context/SyncContext';
@@ -23,6 +24,7 @@ import { findBestPatch } from '../lib/bestPatch';
 import type { RGB } from '../lib/color';
 import { getDailyTarget } from '../lib/dailyColor';
 import { scoreFromDistance } from '../lib/scoring';
+import { setThumbnailUploadMarker } from '../lib/thumbnailUploadStatus';
 
 // A YYYY-MM-DD key in local time — matches the same date-key shape used
 // by RoundContext, StreakContext, and HistoryContext.
@@ -100,6 +102,7 @@ function PhotoScorer({ photoUri, targetRgb, onScore }: { photoUri: string; targe
 // round exists anywhere else until this screen runs.
 export default function SummaryScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { slots, resetRound } = useRound();
   const { recordDay } = useHistory();
   const { pushRecord, pushThumbnails } = useSync();
@@ -150,7 +153,22 @@ export default function SummaryScreen() {
       photoUris,
     });
     pushRecord(dateKey, stored);
-    pushThumbnails(photoUris);
+
+    // Marked not-yet-uploaded the moment submit happens, before the
+    // upload itself resolves — so if the app is killed mid-upload, or the
+    // upload fails silently, SyncContext's foreground sync (see
+    // context/SyncContext.tsx) finds this marker still false next time
+    // and retries it. Not awaited — same fire-and-forget shape as
+    // pushThumbnails itself, so this never touches navigation/submit
+    // timing.
+    const userId = user?.id ?? null;
+    setThumbnailUploadMarker(userId, { dateKey, uploaded: false });
+    pushThumbnails(photoUris)
+      .then(() => setThumbnailUploadMarker(userId, { dateKey, uploaded: true }))
+      .catch((error) => {
+        console.warn('[summary] thumbnail upload failed; will retry next foreground', dateKey, error);
+        setThumbnailUploadMarker(userId, { dateKey, uploaded: false });
+      });
 
     // A success/warning notification haptic on reveal — one clear signal
     // for the one moment on this screen that actually matters.
@@ -169,6 +187,7 @@ export default function SummaryScreen() {
     target.lightness,
     scores,
     photoUris,
+    user,
   ]);
 
   // The average counts up from 0 rather than snapping straight to its

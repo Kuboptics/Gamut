@@ -1,10 +1,12 @@
+import { File } from 'expo-file-system';
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
 import { useAuth } from './AuthContext';
-import { useHistory, type DayRecord } from './HistoryContext';
+import { useHistory, type DayRecord, type StoredHistory } from './HistoryContext';
 import { fetchCloudHistory, pickRecordsNewerOrEqual, upsertCloudRecords } from '../lib/historySync';
 import { uploadThumbnails } from '../lib/thumbnails';
+import { getThumbnailUploadMarker, setThumbnailUploadMarker } from '../lib/thumbnailUploadStatus';
 
 type SyncContextValue = {
   // Fire-and-forget upload for one day's record, called right after
@@ -13,16 +15,49 @@ type SyncContextValue = {
   // or offline — local storage already has the real, authoritative copy
   // either way.
   pushRecord: (dateKey: string, record: DayRecord) => void;
-  // Fire-and-forget upload of a round's 3 shots as small thumbnails, for
-  // the friends leaderboard. Same no-op-when-signed-out/offline shape as
-  // pushRecord, but with no retry-on-reconnect: thumbnails are purely
-  // supplementary, so a missed upload just means friends don't see
-  // squares for today, and it self-heals the next time this account
-  // plays (see lib/thumbnails.ts for why that's an acceptable tradeoff).
-  pushThumbnails: (photoUris: string[]) => void;
+  // Upload of a round's 3 shots as small thumbnails, for the friends
+  // leaderboard. Same no-op-when-signed-out shape as pushRecord. Unlike
+  // before, a failure here *is* retried on the next foreground — see the
+  // syncNow effect below — because thumbnails don't self-heal the way
+  // round_results does (a synced round_results row never carries photos,
+  // so there's nothing else that would re-upload them). Returns a promise
+  // so the caller (app/summary.tsx) can track whether this specific
+  // attempt succeeded, but callers are never required to await it.
+  pushThumbnails: (photoUris: string[]) => Promise<void>;
 };
 
 const SyncContext = createContext<SyncContextValue | null>(null);
+
+// Foreground self-heal for a thumbnail upload that silently failed at
+// submit time — the same idea as the record reconciliation above, but
+// for thumbnails, which don't otherwise get a second chance (see the
+// pushThumbnails doc comment). Only ever acts on the single most recent
+// local round: if the marker's dateKey isn't the latest one in history,
+// this does nothing, since the thumbnails bucket only ever holds one
+// round's photos and re-uploading an older day would overwrite today's
+// correct ones. Also bails out if the round's photo files are gone
+// (e.g. cleaned up) rather than uploading nothing.
+async function retryThumbnailUploadIfNeeded(userId: string, history: StoredHistory): Promise<void> {
+  const marker = await getThumbnailUploadMarker(userId);
+  if (!marker || marker.uploaded) return;
+
+  const dateKeys = Object.keys(history).sort();
+  const latestDateKey = dateKeys[dateKeys.length - 1];
+  if (marker.dateKey !== latestDateKey) return;
+
+  const record = history[marker.dateKey];
+  if (!record || record.photoUris.length === 0) return;
+
+  const filesStillExist = record.photoUris.every((uri) => new File(uri).exists);
+  if (!filesStillExist) return;
+
+  try {
+    await uploadThumbnails(userId, record.photoUris);
+    await setThumbnailUploadMarker(userId, { dateKey: marker.dateKey, uploaded: true });
+  } catch (error) {
+    console.warn('[SyncContext] thumbnail retry failed; will try again next foreground', error);
+  }
+}
 
 // Glues AuthContext and HistoryContext together so neither has to know
 // the other exists. Purely local-history <-> Supabase plumbing — no
@@ -59,6 +94,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         // Offline or the request failed — local data is untouched; the
         // next sign-in or app-foreground retries.
       }
+
+      if (cancelled) return;
+      // Independent of whether the record reconciliation above succeeded
+      // — thumbnails only need the local round's files and the network,
+      // not a successful round_results round-trip.
+      await retryThumbnailUploadIfNeeded(userId!, historyRef.current);
     }
 
     syncNow();
@@ -87,9 +128,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         });
       },
       pushThumbnails: (photoUris) => {
-        if (!userId) return;
-        uploadThumbnails(userId, photoUris).catch(() => {
-          // Offline/failed — no retry. See the type's doc comment above.
+        if (!userId) return Promise.resolve();
+        return uploadThumbnails(userId, photoUris).catch((error) => {
+          console.warn('[SyncContext] pushThumbnails upload failed', error);
+          throw error;
         });
       },
     }),

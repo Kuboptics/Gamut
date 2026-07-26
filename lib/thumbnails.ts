@@ -83,7 +83,10 @@ export async function uploadThumbnails(userId: string, photoUris: string[]): Pro
       const { error } = await supabase.storage
         .from(BUCKET)
         .upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
-      if (error) throw error;
+      if (error) {
+        console.warn('[thumbnails] upload failed for', path, error);
+        throw error;
+      }
     })
   );
 }
