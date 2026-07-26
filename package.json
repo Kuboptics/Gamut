@@ -50,7 +50,7 @@
     "test": "npm run check:table-runway && node --import tsx --test lib/dailyColor.test.ts scripts/dailyColorTableCore.test.ts",
     "generate:daily-colors": "node --import tsx scripts/generateDailyColorTable.ts",
     "check:table-runway": "node --import tsx scripts/checkTableRunway.ts",
-    "eas-build-pre-install": "npm run check:table-runway",
+    "eas-build-post-install": "npm run check:table-runway",
     "preupdate": "npm run check:table-runway",
     "update": "eas update"
   },
