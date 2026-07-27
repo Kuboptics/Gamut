@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -26,6 +27,11 @@ import { getExpoPushTokenAsync, requestNotificationPermissionAsync } from '../..
 import { fetchNotificationPreference, savePushToken, setNotificationsEnabled } from '../../lib/pushTokens';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
+
+// The iOS spinner's fixed height — also used as the collapsible time
+// section's expanded target height (see styles.picker and
+// pickerContainerStyle below), so the two numbers can never drift apart.
+const IOS_PICKER_HEIGHT = 160;
 
 // Formats an hour/minute pair as "6:30 PM" — same 12-hour, no-leading-
 // zero style a clock face would use.
@@ -63,6 +69,10 @@ const HOW_IT_WORKS = [
 export default function SettingsScreen() {
   const { enabled, hour, minute, isLoaded, permissionDenied, setEnabled, setTime } = useReminder();
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
+  // Whether the "Reminder Time" row is expanded to show the picker.
+  // Local, unpersisted UI state only — starts false every mount, so the
+  // picker is always collapsed again on next launch.
+  const [isTimePickerExpanded, setIsTimePickerExpanded] = useState(false);
   const router = useRouter();
   const { user, isLoaded: isAuthLoaded, signOut } = useAuth();
   const todayHue = getDailyTarget().hue;
@@ -204,7 +214,10 @@ export default function SettingsScreen() {
   }, [hour, minute]);
 
   function handleTimeChange(event: DateTimePickerEvent, date?: Date) {
-    if (Platform.OS === 'android') setShowAndroidPicker(false);
+    if (Platform.OS === 'android') {
+      setShowAndroidPicker(false);
+      setIsTimePickerExpanded(false);
+    }
     if (event.type === 'dismissed' || !date) return;
     setTime(date.getHours(), date.getMinutes());
   }
@@ -221,6 +234,41 @@ export default function SettingsScreen() {
       : withTiming(target, { duration: motionDuration.base, easing: motionEasing });
   }, [isNameDirty, reducedMotion, saveButtonOpacity]);
   const saveButtonAnimatedStyle = useAnimatedStyle(() => ({ opacity: saveButtonOpacity.value }));
+
+  // The expanded height is a known fixed value (IOS_PICKER_HEIGHT), not
+  // measured — Android's picker is a native dialog and renders nothing
+  // inline, so its target height is just 0.
+  const expandedPickerHeight = Platform.OS === 'ios' ? IOS_PICKER_HEIGHT : 0;
+
+  const pickerHeight = useSharedValue(0);
+  useEffect(() => {
+    const target = isTimePickerExpanded ? expandedPickerHeight : 0;
+    pickerHeight.value = reducedMotion
+      ? target
+      : withTiming(target, { duration: motionDuration.base, easing: motionEasing });
+  }, [isTimePickerExpanded, expandedPickerHeight, reducedMotion, pickerHeight]);
+  const pickerContainerStyle = useAnimatedStyle(() => ({ height: pickerHeight.value }));
+
+  const chevronRotation = useSharedValue(0);
+  useEffect(() => {
+    const target = isTimePickerExpanded ? 180 : 0;
+    chevronRotation.value = reducedMotion
+      ? target
+      : withTiming(target, { duration: motionDuration.base, easing: motionEasing });
+  }, [isTimePickerExpanded, reducedMotion, chevronRotation]);
+  const chevronStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${chevronRotation.value}deg` }] }));
+
+  // Android's picker is a native dialog, not inline content — tapping
+  // always (re)opens it, same as before this change. iOS just toggles
+  // the inline spinner open/closed.
+  function toggleTimePicker() {
+    if (Platform.OS === 'android') {
+      setShowAndroidPicker(true);
+      setIsTimePickerExpanded(true);
+      return;
+    }
+    setIsTimePickerExpanded((expanded) => !expanded);
+  }
 
   const swipeHandlers = useTabSwipe(3);
 
@@ -251,21 +299,23 @@ export default function SettingsScreen() {
           )}
 
           {enabled && (
-            <View style={styles.timeZone}>
-              <Label>Reminder Time</Label>
-
-              {Platform.OS === 'android' ? (
-                <>
-                  <PressableOpacity onPress={() => setShowAndroidPicker(true)}>
-                    <BodyText style={styles.timeValue}>{formatTime(hour, minute)}</BodyText>
-                  </PressableOpacity>
-                  {showAndroidPicker && (
-                    <DateTimePicker value={timeAsDate} mode="time" display="default" onChange={handleTimeChange} />
-                  )}
-                </>
-              ) : (
-                <>
+            <View style={styles.timeSection}>
+              <PressableOpacity onPress={toggleTimePicker} style={styles.timeRow}>
+                <Label>Reminder Time</Label>
+                <View style={styles.timeRowRight}>
                   <BodyText style={styles.timeValue}>{formatTime(hour, minute)}</BodyText>
+                  <Animated.View style={chevronStyle}>
+                    <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
+                  </Animated.View>
+                </View>
+              </PressableOpacity>
+
+              <Animated.View style={[styles.pickerWrapper, pickerContainerStyle]}>
+                {Platform.OS === 'android' ? (
+                  showAndroidPicker && (
+                    <DateTimePicker value={timeAsDate} mode="time" display="default" onChange={handleTimeChange} />
+                  )
+                ) : (
                   <DateTimePicker
                     value={timeAsDate}
                     mode="time"
@@ -274,8 +324,8 @@ export default function SettingsScreen() {
                     onChange={handleTimeChange}
                     style={styles.picker}
                   />
-                </>
-              )}
+                )}
+              </Animated.View>
             </View>
           )}
         </Panel>
@@ -433,9 +483,18 @@ const styles = StyleSheet.create({
   note: {
     color: colors.textMuted,
   },
-  timeZone: {
-    alignItems: 'center',
+  timeSection: {
     gap: spacing.sm,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   // A clock reading, not a hex code/score/the drop countdown, so it's
   // outside the narrowed dot-matrix rule — Inter (BodyText) instead.
@@ -444,8 +503,13 @@ const styles = StyleSheet.create({
     fontSize: typeScale.specimen,
     letterSpacing: -0.5,
   },
+  // Clips the picker so it never visually spills past its animated
+  // height while collapsing/expanding.
+  pickerWrapper: {
+    overflow: 'hidden',
+  },
   picker: {
-    height: 160,
+    height: IOS_PICKER_HEIGHT,
     width: '100%',
   },
   // Layout only — the surface fill/border/radius come from Panel.
