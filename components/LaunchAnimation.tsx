@@ -15,13 +15,13 @@ import { colors, fonts, spacing } from '../constants/theme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const WORDMARK = 'GAMUT';
-const SIGNATURE = 'By Kuboptics';
+const SIGNATURE = 'BY KUBOPTICS';
 
 // Beats specific to this one-off launch sequence, not reused anywhere
 // else in the app, so they live here rather than in constants/motion.ts.
 const CURSOR_BLINK_MS = 250; // one blink phase; a full on/off cycle is ~2x this
 const PAUSE_BEFORE_SECOND_LINE_MS = 200;
-// "By Kuboptics" is 12 letters vs. GAMUT's 5 — at GAMUT's 140ms/letter
+// "BY KUBOPTICS" is 12 letters vs. GAMUT's 5 — at GAMUT's 140ms/letter
 // pace it would take 1.54s on its own, so the second line types faster
 // (half the delay) to keep the whole sequence around 2.5s total.
 const SECOND_LINE_STAGGER_MS = REVEAL_STAGGER_MS / 2;
@@ -41,7 +41,7 @@ type LaunchAnimationProps = {
 // app/_layout.tsx, which renders this on top of everything and only
 // while it hasn't finished yet — nothing flashes behind it). Types out
 // "GAMUT" letter by letter, pauses briefly, then the same cursor moves
-// down and types out "By Kuboptics" underneath (same effect, its own
+// down and types out "BY KUBOPTICS" underneath (same effect, its own
 // small/muted style), holds, fades the cursor out, then fades the whole
 // overlay out and calls onDone.
 export function LaunchAnimation({ onDone }: LaunchAnimationProps) {
@@ -52,13 +52,20 @@ export function LaunchAnimation({ onDone }: LaunchAnimationProps) {
   // on timers below. Reduced motion: both lines start fully typed.
   const [typedCountLine1, setTypedCountLine1] = useState(reducedMotion ? WORDMARK.length : 1);
   const [typedCountLine2, setTypedCountLine2] = useState(reducedMotion ? SIGNATURE.length : 0);
-  const [showSubtitle, setShowSubtitle] = useState(reducedMotion);
 
   const overlayOpacity = useSharedValue(1);
   const cursorOpacity = useSharedValue(1);
 
   const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayOpacity.value }));
   const cursorStyle = useAnimatedStyle(() => ({ opacity: cursorOpacity.value }));
+  // Line one's cursor stays mounted for the whole animation (see render
+  // below) so its width is always reserved — only its opacity drops to 0
+  // once line two starts, instead of removing it from the tree. That's
+  // what stops GAMUT from re-centering and shifting left when the cursor
+  // moves down.
+  const cursorLine1Style = useAnimatedStyle(() => ({
+    opacity: typedCountLine2 === 0 ? cursorOpacity.value : 0,
+  }));
 
   useEffect(() => {
     // Every timer started below is collected here so all of them — both
@@ -116,7 +123,6 @@ export function LaunchAnimation({ onDone }: LaunchAnimationProps) {
     // line two instead.
     timeouts.push(
       setTimeout(() => {
-        setShowSubtitle(true);
         setTypedCountLine2(1);
         typingIntervalLine2 = setInterval(() => {
           setTypedCountLine2((count) => {
@@ -156,18 +162,19 @@ export function LaunchAnimation({ onDone }: LaunchAnimationProps) {
     <View style={styles.content}>
       <Text style={styles.wordmark}>
         {WORDMARK.slice(0, typedCountLine1)}
-        {!reducedMotion && typedCountLine2 === 0 && (
-          <Animated.Text style={[styles.cursorLine1, cursorStyle]}>|</Animated.Text>
+        {!reducedMotion && (
+          <Animated.Text style={[styles.cursorLine1, cursorLine1Style]}>|</Animated.Text>
         )}
       </Text>
-      {showSubtitle && (
-        <Text style={styles.signature}>
-          {reducedMotion ? SIGNATURE : SIGNATURE.slice(0, typedCountLine2)}
-          {!reducedMotion && typedCountLine2 > 0 && (
-            <Animated.Text style={[styles.cursorLine2, cursorStyle]}>|</Animated.Text>
-          )}
-        </Text>
-      )}
+      {/* Always rendered (even empty) from frame one so this line's
+          height is reserved for the whole animation — only its letters
+          change as it types, so GAMUT never shifts vertically either. */}
+      <Text style={styles.signature}>
+        {reducedMotion ? SIGNATURE : SIGNATURE.slice(0, typedCountLine2)}
+        {!reducedMotion && typedCountLine2 > 0 && (
+          <Animated.Text style={[styles.cursorLine2, cursorStyle]}>|</Animated.Text>
+        )}
+      </Text>
     </View>
   );
 
