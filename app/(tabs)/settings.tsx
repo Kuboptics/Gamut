@@ -4,10 +4,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ActionButton } from '../../components/ActionButton';
+import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
 import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
@@ -15,7 +16,7 @@ import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
-import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
 import { motionDuration, motionEasing } from '../../constants/motion';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
@@ -67,6 +68,7 @@ const HOW_IT_WORKS = [
 // here is on-device (expo-notifications, scheduled locally) — no
 // accounts, no server, matching the rest of the app's Phase 2 features.
 export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
   const { enabled, hour, minute, isLoaded, permissionDenied, setEnabled, setTime } = useReminder();
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
   // Whether the "Reminder Time" row is expanded to show the picker.
@@ -273,8 +275,14 @@ export default function SettingsScreen() {
   const swipeHandlers = useTabSwipe(3);
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
+      <AppHeader />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
+        ]}
+      >
         <Panel style={styles.body} hue={todayHue}>
           <View style={styles.row}>
             <View style={styles.rowLabelGroup}>

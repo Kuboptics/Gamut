@@ -88,6 +88,11 @@ export const spacing = {
   xxxl: 48,
 };
 
+// Approx iOS native tab bar height above the home indicator — tune on
+// device. Added on top of useSafeAreaInsets().bottom (the home-indicator
+// inset alone) so content clears the translucent NativeTabs bar too.
+export const TAB_BAR_CLEARANCE = 52;
+
 // Type scale: real size contrast between the different roles text plays
 // on screen, from the huge Result score down to small caption labels.
 export const typeScale = {

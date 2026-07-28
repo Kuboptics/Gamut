@@ -3,8 +3,9 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Alert, Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
 import { ColorSwatch } from '../../components/ColorSwatch';
 import { HeroText } from '../../components/HeroText';
@@ -15,7 +16,7 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
 import { StatusDot } from '../../components/StatusDot';
 import { TickRule } from '../../components/TickRule';
-import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound, type RoundSlots } from '../../context/RoundContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
@@ -163,35 +164,6 @@ function RoundProgress({ slots }: { slots: RoundSlots }) {
   );
 }
 
-// A small geometric aperture/lens mark — concentric hairline rings with
-// radial tick marks, like a focus ring. A precise technical accent, not
-// an illustration, reinforcing the "instrument" feel near the capture
-// button — monochrome throughout, since it's decorative, not a signal
-// (see CLAUDE.md for the short list of what red is actually reserved
-// for). Capture-state only — it's about focusing before a shot, so it
-// doesn't belong in the completed state.
-const APERTURE_SIZE = 40;
-const APERTURE_TICK_COUNT = 8;
-
-function ApertureMark() {
-  return (
-    <View style={styles.apertureWrap}>
-      <View style={styles.apertureOuterRing} />
-      <View style={styles.apertureInnerRing} />
-      <View style={styles.apertureCenterDot} />
-      {Array.from({ length: APERTURE_TICK_COUNT }).map((_, index) => (
-        <View
-          key={index}
-          style={[
-            styles.apertureTick,
-            { transform: [{ rotate: `${(360 / APERTURE_TICK_COUNT) * index}deg` }, { translateY: -APERTURE_SIZE / 2 }] },
-          ]}
-        />
-      ))}
-    </View>
-  );
-}
-
 // The "Today" screen: dispatches between the pre-round capture flow and
 // the completed-day result, purely based on whether HistoryContext has
 // today's record yet. Once a round is submitted (see app/summary.tsx),
@@ -205,6 +177,7 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.swipeArea} {...swipeHandlers}>
+      <AppHeader />
       {todayRecord ? <CompletedToday record={todayRecord} /> : <CaptureToday />}
     </View>
   );
@@ -214,6 +187,7 @@ export default function TodayScreen() {
 // empty round through banking each of the 3 photos.
 function CaptureToday() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { slots, isLoaded } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
@@ -245,7 +219,7 @@ function CaptureToday() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <SpecimenCard
         hex={target.hex}
         hue={target.hue}
@@ -257,7 +231,10 @@ function CaptureToday() {
         }
       />
 
-      <Panel style={styles.controlsPanel} hue={target.hue}>
+      <Panel
+        style={[styles.controlsPanel, { marginBottom: spacing.lg + insets.bottom + TAB_BAR_CLEARANCE }]}
+        hue={target.hue}
+      >
         {!isLoaded && <Label style={styles.roundInfo}>Loading…</Label>}
 
         {isLoaded && (
@@ -268,8 +245,6 @@ function CaptureToday() {
             </Label>
 
             <TickRule />
-
-            <ApertureMark />
 
             <PrimaryButton label={primaryLabel} onPress={handlePrimaryAction} />
           </>
@@ -286,11 +261,12 @@ function CaptureToday() {
 // there's no retaking it anymore.
 function CompletedToday({ record }: { record: DayRecord }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const colorName = nameColor(record.hue, record.saturation, record.lightness);
   const passed = record.outcome === 'passed';
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <SpecimenCard
         hex={record.hex}
         hue={record.hue}
@@ -302,7 +278,10 @@ function CompletedToday({ record }: { record: DayRecord }) {
         }
       />
 
-      <Panel style={styles.controlsPanel} hue={record.hue}>
+      <Panel
+        style={[styles.controlsPanel, { paddingBottom: spacing.xl + insets.bottom + TAB_BAR_CLEARANCE }]}
+        hue={record.hue}
+      >
         <Label style={styles.breakdownHeader}>Breakdown</Label>
 
         <View style={styles.photoStrip}>
@@ -475,44 +454,6 @@ const styles = StyleSheet.create({
   },
   roundInfo: {
     textAlign: 'center',
-  },
-  apertureWrap: {
-    alignSelf: 'center',
-    width: APERTURE_SIZE,
-    height: APERTURE_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  apertureOuterRing: {
-    position: 'absolute',
-    width: APERTURE_SIZE,
-    height: APERTURE_SIZE,
-    borderRadius: APERTURE_SIZE / 2,
-    borderWidth: 1,
-    borderColor: colors.textPrimary,
-  },
-  apertureInnerRing: {
-    position: 'absolute',
-    width: APERTURE_SIZE * 0.5,
-    height: APERTURE_SIZE * 0.5,
-    borderRadius: (APERTURE_SIZE * 0.5) / 2,
-    borderWidth: 1,
-    borderColor: colors.textMuted,
-  },
-  apertureCenterDot: {
-    position: 'absolute',
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: colors.textPrimary,
-  },
-  apertureTick: {
-    position: 'absolute',
-    top: APERTURE_SIZE / 2 - 2.5,
-    left: APERTURE_SIZE / 2 - 0.5,
-    width: 1,
-    height: 5,
-    backgroundColor: colors.border,
   },
   photoStrip: {
     flexDirection: 'row',

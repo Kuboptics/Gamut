@@ -1,14 +1,15 @@
 import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { TickRule } from '../../components/TickRule';
-import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { useStreak } from '../../context/StreakContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
@@ -83,6 +84,7 @@ function StreakChain({ history }: { history: Record<string, DayRecord> }) {
 // instrument panels instead of two separate tabs.
 export default function ProgressScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { currentStreak, isLoaded: streakLoaded } = useStreak();
   const { history } = useHistory();
   const isActive = streakLoaded && currentStreak > 0;
@@ -96,8 +98,14 @@ export default function ProgressScreen() {
   const swipeHandlers = useTabSwipe(1);
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
+      <AppHeader />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
+        ]}
+      >
         <Panel style={styles.streakPanel} hue={todayHue}>
           {!streakLoaded ? (
             <Label>Loading…</Label>

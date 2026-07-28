@@ -3,8 +3,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
 import { FlameIcon } from '../../components/FlameIcon';
 import { FriendThumbnails } from '../../components/FriendThumbnails';
@@ -13,7 +14,7 @@ import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
-import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getDailyTarget } from '../../lib/dailyColor';
@@ -29,6 +30,7 @@ import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../
 // than assuming Settings already gated entry.
 export default function FriendsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, isLoaded: isAuthLoaded } = useAuth();
   const userId = user?.id ?? null;
   const todayHue = getDailyTarget().hue;
@@ -91,7 +93,8 @@ export default function FriendsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']} {...swipeHandlers}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
+      <AppHeader />
       {userId && (
         <View style={styles.manageRow}>
           <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
@@ -102,7 +105,7 @@ export default function FriendsScreen() {
       )}
 
       {!isAuthLoaded ? null : !userId ? (
-        <View style={styles.signedOutBody}>
+        <View style={[styles.signedOutBody, { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}>
           <Panel style={styles.panel} hue={todayHue}>
             <Label>Friends</Label>
             <BodyText style={styles.note}>
@@ -116,7 +119,10 @@ export default function FriendsScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}

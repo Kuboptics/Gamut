@@ -1,36 +1,49 @@
 import { StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { useCountdown } from '../lib/CountdownContext';
 import { formatCountdown } from '../lib/countdown';
 import { HeroText } from './HeroText';
 import { Label } from './Label';
 import { ReadoutText } from './ReadoutText';
 
-// The wordmark + live countdown-to-next-drop — shown once, above every
-// tab (see app/(tabs)/_layout.tsx), so it reads as one instrument
-// regardless of which tab is showing. The countdown itself is one of the
-// app's two data readouts (see ReadoutText) — the daily-drop timer. The
-// layout owns the single ticking timer and just passes the current value
-// down here; this component only formats and renders it.
-export function AppHeader({ countdownMs }: { countdownMs: number }) {
+// The wordmark + live countdown-to-next-drop — rendered at the top of
+// every tab screen (see app/(tabs)/index.tsx, progress.tsx, friends.tsx,
+// settings.tsx) so it reads as one instrument regardless of which tab is
+// showing. It used to live once in the shared layout above the old JS tab
+// bar, but NativeTabs (the system tab bar) has to be the top-level element
+// in the layout, so each screen renders its own copy instead. The
+// countdown value itself comes from CountdownContext, which owns the
+// single ticking timer shared by every screen — this component only
+// formats and renders it. Applies its own top safe-area inset (it used to
+// rely on the layout's SafeAreaView for that).
+export function AppHeader() {
+  const countdownMs = useCountdown();
+
   return (
-    <View style={styles.topBar}>
-      <View style={styles.wordmark}>
-        <HeroText style={styles.wordmarkTitle}>Gamut</HeroText>
-        <Label style={styles.signature}>by Kuboptics</Label>
-      </View>
-      <View style={styles.countdown}>
-        <View style={styles.liveDot} />
-        <View>
-          <Label style={styles.countdownLabel}>Next drop</Label>
-          <ReadoutText style={styles.countdownValue}>{formatCountdown(countdownMs)}</ReadoutText>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <View style={styles.topBar}>
+        <View style={styles.wordmark}>
+          <HeroText style={styles.wordmarkTitle}>Gamut</HeroText>
+          <Label style={styles.signature}>by Kuboptics</Label>
+        </View>
+        <View style={styles.countdown}>
+          <View style={styles.liveDot} />
+          <View>
+            <Label style={styles.countdownLabel}>Next drop</Label>
+            <ReadoutText style={styles.countdownValue}>{formatCountdown(countdownMs)}</ReadoutText>
+          </View>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: colors.background,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
