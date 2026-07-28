@@ -279,7 +279,7 @@ function CompletedToday({ record }: { record: DayRecord }) {
       />
 
       <Panel
-        style={[styles.controlsPanel, { paddingBottom: spacing.xl + insets.bottom + TAB_BAR_CLEARANCE }]}
+        style={[styles.controlsPanel, { marginBottom: spacing.lg + insets.bottom + TAB_BAR_CLEARANCE }]}
         hue={record.hue}
       >
         <Label style={styles.breakdownHeader}>Breakdown</Label>
