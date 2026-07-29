@@ -40,6 +40,17 @@ export const DELTA_E_RELAX_FLOOR = 10;
 // darker/more saturated" even when deltaE alone would let it through.
 export const MIN_HUE_SEPARATION_FROM_YESTERDAY = 40;
 
+// The variety fix: starting HUE_GUARD_V2_EPOCH, the hue-separation check
+// above widens from "just yesterday" to "each of the last
+// MIN_HUE_SEPARATION_DAYS days" — a run of 2-3 days that are all
+// technically >= MIN_DELTA_E apart but sit in nearby hues (the "everything
+// this week reads as blue" complaint) still gets caught this way. Dates
+// before the epoch are untouched on purpose, so they regenerate
+// byte-identical to what's already committed and may already be playing
+// out on a device.
+export const HUE_GUARD_V2_EPOCH = '2026-07-30';
+export const MIN_HUE_SEPARATION_DAYS = 3;
+
 const toLab = converter('lab');
 const toOklch = converter('oklch');
 const ciede2000 = differenceCiede2000();
@@ -88,6 +99,92 @@ function pickGuardedCandidate(dateStr: string, recentDays: DailyTarget[], yester
   return candidates[0];
 }
 
+// True if `candidateHex` clears MIN_HUE_SEPARATION_FROM_YESTERDAY (OKLCH)
+// against each of the first `hueCheckDays` entries of `recentDays` —
+// recentDays[0] is always yesterday, recentDays[1] the day before that,
+// and so on, so "first N" means "the N most recent days".
+function passesHueSeparation(candidateHex: string, recentDays: DailyTarget[], hueCheckDays: number): boolean {
+  return recentDays.slice(0, hueCheckDays).every((day) => oklchHueSeparation(candidateHex, day.hex) >= MIN_HUE_SEPARATION_FROM_YESTERDAY);
+}
+
+function passesGuardV2(candidate: DailyTarget, recentDays: DailyTarget[], hueCheckDays: number, deltaEThreshold: number): boolean {
+  const farEnoughFromRecentDays = recentDays.every((day) => deltaE2000(candidate.hex, day.hex) >= deltaEThreshold);
+  return farEnoughFromRecentDays && passesHueSeparation(candidate.hex, recentDays, hueCheckDays);
+}
+
+// The variety fix's picker (dates >= HUE_GUARD_V2_EPOCH). Keeps the exact
+// same deltaE 5-day guard and relaxation ladder as pickGuardedCandidate,
+// but checks hue separation against the last MIN_HUE_SEPARATION_DAYS days
+// instead of just yesterday. If nothing clears that at any deltaE
+// threshold, the hue window itself relaxes: shrink from
+// MIN_HUE_SEPARATION_DAYS down to yesterday-only (matching the old rule),
+// retry the full deltaE ladder again, and only then fall back unguarded.
+function pickGuardedCandidateV2(dateStr: string, recentDays: DailyTarget[]): DailyTarget {
+  const candidates = Array.from({ length: MAX_CANDIDATES }, (_, attempt) => baseCandidate(dateStr, attempt));
+
+  for (const hueCheckDays of [MIN_HUE_SEPARATION_DAYS, 1]) {
+    for (let threshold = MIN_DELTA_E; threshold >= DELTA_E_RELAX_FLOOR; threshold -= DELTA_E_RELAX_STEP) {
+      for (const candidate of candidates) {
+        if (passesGuardV2(candidate, recentDays, hueCheckDays, threshold)) {
+          if (threshold < MIN_DELTA_E || hueCheckDays < MIN_HUE_SEPARATION_DAYS) {
+            console.warn(
+              `[dailyColorTableCore] v2 guard relaxed (hue window=${hueCheckDays}d, deltaE threshold=${threshold}) for ${dateStr}`
+            );
+          }
+          return candidate;
+        }
+      }
+    }
+  }
+
+  console.warn(
+    `[dailyColorTableCore] v2 guard falling back to an unguarded color for ${dateStr} — no candidate cleared any relaxation step within ${MAX_CANDIDATES} tries`
+  );
+  return candidates[0];
+}
+
+// One-off manual reroll, 2026-07-29 only. The originally-generated color
+// for this date (#58E3D8, hue ~175) shipped before the variety fix above
+// existed and read as "aqain" (another aqua) right after two blues/greens
+// in a row. This forces a re-salt for this single date, with the variety
+// fix's 3-day hue rule applied early (by hand) plus an explicit ban on
+// the 150-200 degree aqua/teal band so it can't land back in the same
+// spot. Not a general mechanism — HUE_GUARD_V2_EPOCH below is the real,
+// ongoing fix, effective 2026-07-30 onward; this date is one day short of
+// that epoch and needed a manual nudge instead.
+const MANUAL_REROLL_DATE = '2026-07-29';
+const MANUAL_REROLL_HUE_DAYS = 3;
+const MANUAL_REROLL_AVOID_HUE_BAND: [number, number] = [150, 200];
+
+function inAvoidBand(hue: number): boolean {
+  return hue >= MANUAL_REROLL_AVOID_HUE_BAND[0] && hue <= MANUAL_REROLL_AVOID_HUE_BAND[1];
+}
+
+function pickManualReroll(dateStr: string, recentDays: DailyTarget[]): DailyTarget {
+  const candidates = Array.from({ length: MAX_CANDIDATES }, (_, attempt) => baseCandidate(dateStr, attempt));
+
+  for (let threshold = MIN_DELTA_E; threshold >= DELTA_E_RELAX_FLOOR; threshold -= DELTA_E_RELAX_STEP) {
+    for (let attempt = 0; attempt < candidates.length; attempt++) {
+      const candidate = candidates[attempt];
+      if (inAvoidBand(candidate.hue)) continue;
+      const farEnoughFromRecentDays = recentDays.every((day) => deltaE2000(candidate.hex, day.hex) >= threshold);
+      const hueOk = passesHueSeparation(candidate.hex, recentDays, MANUAL_REROLL_HUE_DAYS);
+      if (farEnoughFromRecentDays && hueOk) {
+        console.warn(
+          `[dailyColorTableCore] manual reroll for ${dateStr}: salt=guard-${attempt}, deltaE threshold=${threshold}, ` +
+            `hex=${candidate.hex}, hue=${candidate.hue.toFixed(2)}, saturation=${candidate.saturation.toFixed(2)}, lightness=${candidate.lightness.toFixed(2)}`
+        );
+        return candidate;
+      }
+    }
+  }
+
+  throw new Error(
+    `[dailyColorTableCore] manual reroll for ${dateStr} found no candidate clearing deltaE >= ${DELTA_E_RELAX_FLOOR}, ` +
+      `${MANUAL_REROLL_HUE_DAYS}-day hue separation, and the avoided hue band within ${MAX_CANDIDATES} tries`
+  );
+}
+
 function daysBefore(date: Date, daysBack: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() - daysBack);
 }
@@ -114,7 +211,16 @@ export function resolveDailyTargetByRecursion(date: Date): DailyTarget {
   }
 
   const recentDays = Array.from({ length: LOOKBACK_DAYS }, (_, i) => resolveDailyTargetByRecursion(daysBefore(date, i + 1)));
-  const result = pickGuardedCandidate(dateStr, recentDays, recentDays[0]);
+
+  let result: DailyTarget;
+  if (dateStr === MANUAL_REROLL_DATE) {
+    result = pickManualReroll(dateStr, recentDays);
+  } else if (dateStr >= HUE_GUARD_V2_EPOCH) {
+    result = pickGuardedCandidateV2(dateStr, recentDays);
+  } else {
+    result = pickGuardedCandidate(dateStr, recentDays, recentDays[0]);
+  }
+
   resolvedCache.set(dateStr, result);
   return result;
 }
