@@ -101,13 +101,9 @@ export async function updateDisplayName(userId: string, displayName: string): Pr
 }
 
 async function lookupUserIdByCode(code: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('friend_code', code)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('lookup_profile_id_by_code', { lookup_code: code });
   if (error) throw error;
-  return data?.id ?? null;
+  return data ?? null;
 }
 
 // The most recent row (if any) between two users, in either direction.
