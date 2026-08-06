@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '../../components/AppHeader';
@@ -74,6 +74,19 @@ export default function FriendsScreen() {
   // Refetches every time this tab gains focus — e.g. coming back from
   // Manage after accepting a request, or from playing today's round.
   useFocusEffect(refresh);
+
+  // Also refetch when the app comes back to the foreground while this tab
+  // is the one on screen (e.g. you background the app, a friend plays,
+  // you switch back). useFocusEffect above only fires on in-app
+  // navigation, not on foregrounding, so without this the leaderboard
+  // stayed stale until a full close-and-reopen.
+  const isFocused = useIsFocused();
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && isFocused) refresh();
+    });
+    return () => subscription.remove();
+  }, [refresh, isFocused]);
 
   // Pull-to-refresh: the same load, but tracked so the spinner shows
   // while it's in flight and disappears once it settles either way.
