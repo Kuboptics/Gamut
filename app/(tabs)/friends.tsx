@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, AppState, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '../../components/AppHeader';
@@ -18,7 +18,7 @@ import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '..
 import { useAuth } from '../../context/AuthContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getDailyTarget } from '../../lib/dailyColor';
-import { fetchFriends, fetchIncomingRequests } from '../../lib/friends';
+import { fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
 
 // The friends leaderboard — the payoff screen, front and center. Friend
@@ -36,10 +36,16 @@ export default function FriendsScreen() {
   const todayHue = getDailyTarget().hue;
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  // Kept around (not just discarded after building the id list below) so
+  // a leaderboard row can be matched back to its friend_requests row id —
+  // the leaderboard entries themselves only carry a userId, but removing
+  // a friend needs that row id (see lib/friends.ts's removeFriend).
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [hasFriends, setHasFriends] = useState(false);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [loadError, setLoadError] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   // The one place that actually fetches everything — friends' streaks,
   // today's results, and thumbnails all come from fetchLeaderboard.
@@ -56,6 +62,7 @@ export default function FriendsScreen() {
 
     try {
       const friendList = await fetchFriends(userId);
+      setFriends(friendList);
       setHasFriends(friendList.length > 0);
       const entries = await fetchLeaderboard(
         userId,
@@ -103,6 +110,33 @@ export default function FriendsScreen() {
   const [viewer, setViewer] = useState<{ entry: LeaderboardEntry; index: number } | null>(null);
   function openPhoto(entry: LeaderboardEntry, index: number) {
     setViewer({ entry, index });
+  }
+
+  // Removing a friend is destructive (it ends the friendship for both
+  // sides at once — see lib/friends.ts), so it's gated behind the same
+  // confirmation app/friends/manage.tsx already uses. A failure here is
+  // surfaced via removeError rather than swallowed, for the same reason
+  // as manage.tsx: removeFriend throws when the delete didn't actually
+  // remove anything (e.g. a missing RLS policy), and a friend silently
+  // staying on the leaderboard with no explanation would be worse than
+  // no feedback at all.
+  function handleRemoveFriend(friend: Friend) {
+    Alert.alert(`Remove ${friend.displayName}?`, "You'll need to add each other again to reconnect.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          setRemoveError(null);
+          try {
+            await removeFriend(friend.id);
+            refresh();
+          } catch {
+            setRemoveError("Couldn't remove that friend — try again.");
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -154,17 +188,33 @@ export default function FriendsScreen() {
             </Panel>
           )}
 
+          {removeError && (
+            <Panel style={styles.panel} hue={todayHue}>
+              <BodyText style={styles.error}>{removeError}</BodyText>
+            </Panel>
+          )}
+
           {leaderboard.length > 0 && (
             <Panel style={styles.panel} hue={todayHue}>
-              {leaderboard.map((entry, index) => (
-                <LeaderboardRow
-                  key={entry.userId}
-                  entry={entry}
-                  rank={index + 1}
-                  isYou={entry.userId === userId}
-                  onOpenPhoto={openPhoto}
-                />
-              ))}
+              {leaderboard.map((entry, index) => {
+                const isYou = entry.userId === userId;
+                // Only friends (not yourself) can be removed, and only if
+                // this entry actually matches a row in `friends` — should
+                // always be true for a non-you row, but this stays a safe
+                // no-op (undefined onRemove, no tap target) rather than
+                // crashing if the two lists were ever out of sync.
+                const matchedFriend = friends.find((friend) => friend.userId === entry.userId);
+                return (
+                  <LeaderboardRow
+                    key={entry.userId}
+                    entry={entry}
+                    rank={index + 1}
+                    isYou={isYou}
+                    onOpenPhoto={openPhoto}
+                    onRemove={!isYou && matchedFriend ? () => handleRemoveFriend(matchedFriend) : undefined}
+                  />
+                );
+              })}
             </Panel>
           )}
 
@@ -212,7 +262,15 @@ function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
 // fixed streak column), so nothing shifts horizontally between rows. Only
 // rank 1 gets a visible border/tint (see styles.rowRankOne) — the
 // signed-in user's own row ("You") carries no separate highlight.
-type RowProps = { entry: LeaderboardEntry; isYou: boolean; onOpenPhoto: (entry: LeaderboardEntry, index: number) => void };
+type RowProps = {
+  entry: LeaderboardEntry;
+  isYou: boolean;
+  onOpenPhoto: (entry: LeaderboardEntry, index: number) => void;
+  // Undefined on your own row (can't unfriend yourself) — see the
+  // leaderboard.map above. When present, tapping the friend's name opens
+  // the same remove confirmation app/friends/manage.tsx uses.
+  onRemove?: () => void;
+};
 
 // The 1/2/3 medal tints — same colors.medalGold/Silver/Bronze values as
 // before, now applied to both the rank number and the dedicated medal
@@ -223,8 +281,9 @@ const RANK_TINT: Record<number, string> = {
   3: colors.medalBronze,
 };
 
-function LeaderboardRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: number }) {
+function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onRemove }: RowProps & { rank: number }) {
   const medalColor = RANK_TINT[rank];
+  const name = isYou ? 'You' : entry.displayName;
   return (
     <View style={[styles.row, rank === 1 && styles.rowRankOne]}>
       <View style={styles.rankColumn}>
@@ -232,7 +291,13 @@ function LeaderboardRow({ entry, rank, isYou, onOpenPhoto }: RowProps & { rank: 
       </View>
       <View style={[styles.medalBar, medalColor ? { backgroundColor: medalColor } : null]} />
       <View style={styles.identity}>
-        <BodyText style={styles.name}>{isYou ? 'You' : entry.displayName}</BodyText>
+        {onRemove ? (
+          <PressableOpacity onPress={onRemove}>
+            <BodyText style={styles.name}>{name}</BodyText>
+          </PressableOpacity>
+        ) : (
+          <BodyText style={styles.name}>{name}</BodyText>
+        )}
         <TodayStatus entry={entry} />
         {entry.playedToday && (
           <FriendThumbnails
