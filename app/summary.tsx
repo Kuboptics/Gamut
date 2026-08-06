@@ -164,7 +164,10 @@ export default function SummaryScreen() {
     const userId = user?.id ?? null;
     setThumbnailUploadMarker(userId, { dateKey, uploaded: false });
     pushThumbnails(photoUris)
-      .then(() => setThumbnailUploadMarker(userId, { dateKey, uploaded: true }))
+      .then(() => {
+        console.log('[summary] thumbnail upload succeeded', dateKey);
+        setThumbnailUploadMarker(userId, { dateKey, uploaded: true });
+      })
       .catch((error) => {
         console.warn('[summary] thumbnail upload failed; will retry next foreground', dateKey, error);
         setThumbnailUploadMarker(userId, { dateKey, uploaded: false });

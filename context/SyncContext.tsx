@@ -35,21 +35,48 @@ const SyncContext = createContext<SyncContextValue | null>(null);
 // local round: if the marker's dateKey isn't the latest one in history,
 // this does nothing, since the thumbnails bucket only ever holds one
 // round's photos and re-uploading an older day would overwrite today's
-// correct ones. Also bails out if the round's photo files are gone
-// (e.g. cleaned up) rather than uploading nothing.
+// correct ones — e.g. after cloud sync (mergeRecords) brings in a newer
+// day recorded on another device while this device's marker still points
+// at an older, locally-failed upload. That means an old failure can go
+// unretried and eventually get silently overwritten by the next round's
+// marker (see app/summary.tsx) — a known, accepted gap, not a bug in this
+// function. Also bails out if the round's photo files are gone (e.g.
+// cleaned up) rather than uploading nothing — every skip below is now
+// logged instead of silent, so a real-device log shows exactly which one
+// fired.
 async function retryThumbnailUploadIfNeeded(userId: string, history: StoredHistory): Promise<void> {
   const marker = await getThumbnailUploadMarker(userId);
-  if (!marker || marker.uploaded) return;
-
   const dateKeys = Object.keys(history).sort();
   const latestDateKey = dateKeys[dateKeys.length - 1];
-  if (marker.dateKey !== latestDateKey) return;
+
+  if (!marker || marker.uploaded) {
+    console.log('[SyncContext] thumbnail retry: nothing pending', { marker, latestDateKey });
+    return;
+  }
+
+  if (marker.dateKey !== latestDateKey) {
+    console.log('[SyncContext] thumbnail retry: marker date is not the latest day, skipping', {
+      marker,
+      latestDateKey,
+    });
+    return;
+  }
 
   const record = history[marker.dateKey];
-  if (!record || record.photoUris.length === 0) return;
+  if (!record || record.photoUris.length === 0) {
+    console.log('[SyncContext] thumbnail retry: no local record for marker date', { marker, latestDateKey });
+    return;
+  }
 
   const filesStillExist = record.photoUris.every((uri) => new File(uri).exists);
-  if (!filesStillExist) return;
+  if (!filesStillExist) {
+    console.warn('[SyncContext] thumbnail retry: photo file(s) missing on disk, giving up', {
+      marker,
+      latestDateKey,
+      photoUris: record.photoUris,
+    });
+    return;
+  }
 
   try {
     await uploadThumbnails(userId, record.photoUris);

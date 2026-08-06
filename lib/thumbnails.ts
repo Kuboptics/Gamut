@@ -20,6 +20,10 @@ import { supabase } from './supabase';
 
 const BUCKET = 'thumbnails';
 
+// If a single slot's network request stalls, this stops it from hanging
+// the whole round's upload (and therefore the retry marker) forever.
+const UPLOAD_TIMEOUT_MS = 30_000;
+
 // This one file gets used two ways: a small 56pt square on the
 // leaderboard row (see components/FriendThumbnails.tsx) and a
 // full-screen resizeMode="contain" viewer (see components/
@@ -61,6 +65,28 @@ async function prepareThumbnail(photoUri: string): Promise<string> {
   return manipulated.uri;
 }
 
+// Rejects with a timeout error if `promise` hasn't settled within `ms`.
+// Supabase's storage upload() doesn't accept an AbortSignal (only some of
+// its other methods do), so this can't truly cancel a stalled upload
+// request on the wire — it can only stop *this* function from waiting on
+// it forever, which is what actually matters: a stuck slot must not block
+// the other two slots or leave the round's retry marker hanging.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 // Resizes and uploads every photo in a round to this user's 3 stable
 // slots, overwriting whatever was there before. Fire-and-forget from the
 // caller's side (see SyncContext.pushThumbnails) — a failure here just
@@ -74,21 +100,50 @@ async function prepareThumbnail(photoUri: string): Promise<string> {
 // contents come out empty/corrupt. arrayBuffer() reads the actual bytes
 // directly, which is what Supabase's own React Native docs use for this
 // exact reason.
+//
+// The 3 slots are independent (Promise.allSettled, not Promise.all): one
+// slot failing must not abort the other two mid-flight, which used to
+// leave the bucket in a silent mixed state — 2 slots correctly overwritten
+// with today's photo, 1 still holding yesterday's — while being reported
+// to the caller as a single all-or-nothing failure. Now it really is
+// all-or-nothing: if any slot fails, the whole call still throws (so the
+// retry marker stays "not uploaded" and a later retry re-sends all 3,
+// which is safe since upload() always upserts), but the thrown error names
+// exactly which slot(s) failed instead of hiding that from the logs.
 export async function uploadThumbnails(userId: string, photoUris: string[]): Promise<void> {
-  await Promise.all(
+  const results = await Promise.allSettled(
     photoUris.map(async (photoUri, slot) => {
       const path = thumbnailPath(userId, slot);
-      const thumbnailUri = await prepareThumbnail(photoUri);
-      const arrayBuffer = await (await fetch(thumbnailUri)).arrayBuffer();
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
-      if (error) {
+      const controller = new AbortController();
+      try {
+        await withTimeout(
+          (async () => {
+            const thumbnailUri = await prepareThumbnail(photoUri);
+            const arrayBuffer = await (await fetch(thumbnailUri, { signal: controller.signal })).arrayBuffer();
+            const { error } = await supabase.storage
+              .from(BUCKET)
+              .upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
+            if (error) throw error;
+          })(),
+          UPLOAD_TIMEOUT_MS,
+          `thumbnail upload for ${path}`
+        );
+      } catch (error) {
+        controller.abort();
         console.warn('[thumbnails] upload failed for', path, error);
         throw error;
       }
+      console.log('[thumbnails] upload succeeded for', path);
     })
   );
+
+  const failedSlots = results
+    .map((result, slot) => (result.status === 'rejected' ? slot : null))
+    .filter((slot): slot is number => slot !== null);
+
+  if (failedSlots.length > 0) {
+    throw new Error(`Thumbnail upload failed for slot(s): ${failedSlots.join(', ')}`);
+  }
 }
 
 // Batch-mints short-lived signed URLs for a set of thumbnail paths in
