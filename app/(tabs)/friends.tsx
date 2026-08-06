@@ -293,10 +293,13 @@ function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onRemove }: RowProps 
       <View style={styles.identity}>
         {onRemove ? (
           <PressableOpacity onPress={onRemove}>
-            <BodyText style={styles.name}>{name}</BodyText>
+            <View style={styles.nameRow}>
+              <BodyText style={styles.name}>{name}</BodyText>
+              <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+            </View>
           </PressableOpacity>
         ) : (
-          <BodyText style={styles.name}>{name}</BodyText>
+          <BodyText style={[styles.name, styles.nameYou]}>{name}</BodyText>
         )}
         <TodayStatus entry={entry} />
         {entry.playedToday && (
@@ -428,9 +431,22 @@ const styles = StyleSheet.create({
   identity: {
     flex: 1,
   },
+  // Lays out a friend's name + the small tappable-hint chevron on one
+  // line — same shape as statusRow below, just for the name instead of
+  // the score/pass-fail row.
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   name: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
+  },
+  // Your own row has no chevron and isn't tappable — dimming the name to
+  // textMuted is the second, matching cue that it's not interactive.
+  nameYou: {
+    color: colors.textMuted,
   },
   thumbnails: {
     marginTop: spacing.sm,
