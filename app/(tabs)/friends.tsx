@@ -211,6 +211,19 @@ export default function FriendsScreen() {
                     rank={index + 1}
                     isYou={isYou}
                     onOpenPhoto={openPhoto}
+                    // Opens the same profile screen for your own row too
+                    // (fetchFriendHistory takes any user id) — requestId
+                    // only ever comes along for a friend's row (see
+                    // matchedFriend above; naturally absent for yourself,
+                    // since you're never your own friend_requests row),
+                    // which is what lets the profile screen show its
+                    // remove control only for a friend, never for you.
+                    onOpenProfile={() =>
+                      router.push({
+                        pathname: '/friend/[id]',
+                        params: matchedFriend ? { id: entry.userId, requestId: matchedFriend.id } : { id: entry.userId },
+                      })
+                    }
                     onRemove={!isYou && matchedFriend ? () => handleRemoveFriend(matchedFriend) : undefined}
                   />
                 );
@@ -266,9 +279,15 @@ type RowProps = {
   entry: LeaderboardEntry;
   isYou: boolean;
   onOpenPhoto: (entry: LeaderboardEntry, index: number) => void;
-  // Undefined on your own row (can't unfriend yourself) — see the
-  // leaderboard.map above. When present, tapping the friend's name opens
-  // the same remove confirmation app/friends/manage.tsx uses.
+  // A short tap on any row's name opens that player's full round history
+  // (app/friend/[id].tsx) — including your own row, which reuses the same
+  // screen. The chevron next to the name is this tap's hint, the
+  // conventional "drill in" meaning for a forward chevron.
+  onOpenProfile: () => void;
+  // Undefined on your own row (can't unfriend yourself). When present,
+  // long-pressing the same name opens the remove confirmation
+  // app/friends/manage.tsx uses — moved off a plain tap so a short tap
+  // can mean "view profile" instead without the two gestures colliding.
   onRemove?: () => void;
 };
 
@@ -281,7 +300,7 @@ const RANK_TINT: Record<number, string> = {
   3: colors.medalBronze,
 };
 
-function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onRemove }: RowProps & { rank: number }) {
+function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onOpenProfile, onRemove }: RowProps & { rank: number }) {
   const medalColor = RANK_TINT[rank];
   const name = isYou ? 'You' : entry.displayName;
   return (
@@ -291,16 +310,15 @@ function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onRemove }: RowProps 
       </View>
       <View style={[styles.medalBar, medalColor ? { backgroundColor: medalColor } : null]} />
       <View style={styles.identity}>
-        {onRemove ? (
-          <PressableOpacity onPress={onRemove}>
-            <View style={styles.nameRow}>
-              <BodyText style={styles.name}>{name}</BodyText>
-              <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
-            </View>
-          </PressableOpacity>
-        ) : (
-          <BodyText style={[styles.name, styles.nameYou]}>{name}</BodyText>
-        )}
+        {/* Tappable for every row now, including your own (onRemove is
+            simply undefined there, so long-press is a no-op) — see
+            RowProps.onOpenProfile above. */}
+        <PressableOpacity onPress={onOpenProfile} onLongPress={onRemove}>
+          <View style={styles.nameRow}>
+            <BodyText style={styles.name}>{name}</BodyText>
+            <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+          </View>
+        </PressableOpacity>
         <TodayStatus entry={entry} />
         {entry.playedToday && (
           <FriendThumbnails
@@ -442,11 +460,6 @@ const styles = StyleSheet.create({
   name: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
-  },
-  // Your own row has no chevron and isn't tappable — dimming the name to
-  // textMuted is the second, matching cue that it's not interactive.
-  nameYou: {
-    color: colors.textMuted,
   },
   thumbnails: {
     marginTop: spacing.sm,
