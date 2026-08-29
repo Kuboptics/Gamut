@@ -12,6 +12,16 @@ Production was rolled back on 17 July to the `eas update` that shipped the tab-s
 
 Everything below is **local to this worktree branch** (`worktree-vectorized-jumping-hellman`) — there's no remote configured here and nothing has been pushed. `git log --oneline -8` at the bottom of this doc is the true state.
 
+**Shipped as a native build — friend profile feature, tag `friend-profile-v1`:** production build number 10, commit `4133718`, `runtimeVersion` fingerprint `7175ac5`, submitted to TestFlight. This build includes:
+- The friend profile screen (`app/friend/[id].tsx`): scrollable per-day history, newest first, each day tinted to its own stored target color — date, color name, hex, per-shot scores, average, pass/fail.
+- `lib/friendProfile.ts` (`fetchFriendHistory`) — no RLS change, reuses the existing friend-read policy round_results/leaderboard already depends on.
+- The leaderboard tap wired to open the profile (`app/(tabs)/friends.tsx`), an own-profile entry point, and remove-friend moved to the header's top-right "…" — shown only on a friend's profile, never your own.
+- The summary card: overall-average hero + medal tier badge (Diamond 70+, Gold 60–69, Silver 50–59, Bronze <50), best day + streak (flame) below. Tier logic is computed client-side from the same fetched rows; the card refetches on focus.
+- Tappable medal → a "Tiers" modal (corner "i" affordance as the tap hint), with the "You" marker fixed to only ever mark the signed-in user's own profile/tier — it used to mislabel whichever profile was open.
+- Medal/diamond icons are raw Tabler SVGs rendered via **`react-native-svg`, a new native dependency** (`components/MedalIcon.tsx`, `components/DiamondIcon.tsx`) — this is why the feature needed a real build rather than shipping as an OTA update.
+
+**`runtimeVersion` is resolved as of this same build** — see item (b) below, now closed.
+
 **What's committed but not yet in any binary** (i.e. would only reach a device via a new `eas build`, never via OTA):
 - `app.json` / `eas.json` — `ITSAppUsesNonExemptEncryption`, the new `production` build profile + submit config (commit `273f230`)
 - `assets/images/icon.png` — alpha channel stripped, same 1024×1024 artwork (commit `65971c2`)
@@ -49,8 +59,9 @@ eas submit --profile production --platform ios
 ## Open items
 
 - (a) The app icon fix (`65971c2`) needs a rebuild and resubmit — and `expo.version` in `app.json` (currently `"1.0.0"`) needs to be bumped first.
-- (b) `runtimeVersion` in `app.json` is the static string `"1.0.0"` — it should move to a policy (e.g. `"appVersion"` or `"fingerprint"`) before the next native module is added. As a static string, an OTA JS update can get pushed to a binary whose native code doesn't actually match, since nothing forces `runtimeVersion` to change when native requirements do.
+- (b) **RESOLVED** (friend-profile-v1, build 10): `runtimeVersion` in `app.json` was the static string `"1.0.0"`, which meant an OTA JS update could get pushed to a binary whose native code didn't actually match, since nothing forced `runtimeVersion` to change when native requirements did. It's now `{ "policy": "fingerprint" }`, so it updates itself whenever native requirements (like `react-native-svg`, added this same build) actually change.
 - (c) The leaderboard layout restructure (`a1e3b57`) and the system-font migration (`42480fe`) have not been verified on a real device or simulator.
+- (d) `expo` is one patch behind its SDK's latest (`54.0.35` installed vs `~54.0.36` available) — resolve with `npx expo install --check` on a future native build; not urgent.
 
 ## Other things I know are unfinished or fragile, not listed above
 
