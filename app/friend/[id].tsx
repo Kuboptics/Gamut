@@ -21,7 +21,7 @@ import { motionDuration, motionEasing } from '../../constants/motion';
 import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { PASS_THRESHOLD } from '../../context/RoundContext';
-import { removeFriend } from '../../lib/friends';
+import { blockUser, removeFriend } from '../../lib/friends';
 import { fetchFriendHistory, type FriendDay, type FriendHistory } from '../../lib/friendProfile';
 
 // Parses a "YYYY-MM-DD" key back into a local-time Date — same helper as
@@ -169,6 +169,45 @@ export default function FriendProfileScreen() {
     ]);
   }
 
+  // Blocking is heavier than removing — it also ends the friendship (see
+  // lib/friends.ts's blockUser) — so it gets its own confirmation with
+  // both consequences spelled out, same copy as app/friends/manage.tsx's
+  // block confirmation, rather than folding straight into the ⋯ menu's
+  // own "Block" choice above.
+  function handleBlock() {
+    if (!requestId || !user) return;
+    Alert.alert(
+      `Block ${displayName}?`,
+      "They won't be able to see your photos or add you again. This also removes them as a friend.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            setRemoveError(null);
+            try {
+              await blockUser(user.id, id, displayName, requestId);
+              router.back();
+            } catch {
+              setRemoveError("Couldn't block that user — try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // The header's ⋯ control — was a direct shortcut to handleRemove, now
+  // a small menu since there are two destructive choices to offer.
+  function handleManage() {
+    Alert.alert(displayName, undefined, [
+      { text: 'Remove friend', style: 'destructive', onPress: handleRemove },
+      { text: 'Block', style: 'destructive', onPress: handleBlock },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -180,12 +219,13 @@ export default function FriendProfileScreen() {
         </View>
         {/* Trailing slot, scoped to this screen's own header row (not the
             shared AppHeader — that component has no trailing slot and
-            only renders on the tab-root screens). Only ever a remove
-            control, and only for a friend's profile — see isOwnProfile/
-            requestId below. Same fixed 32x32 box as the plain spacer it
-            replaces, so the title stays centered either way. */}
+            only renders on the tab-root screens). Only ever the Remove/
+            Block menu, and only for a friend's profile — see
+            isOwnProfile/requestId below. Same fixed 32x32 box as the
+            plain spacer it replaces, so the title stays centered either
+            way. */}
         {!isOwnProfile && requestId ? (
-          <PressableOpacity style={styles.headerAction} hitSlop={8} onPress={handleRemove}>
+          <PressableOpacity style={styles.headerAction} hitSlop={8} onPress={handleManage}>
             <Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} />
           </PressableOpacity>
         ) : (

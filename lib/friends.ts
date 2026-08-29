@@ -238,6 +238,32 @@ export async function fetchFriends(userId: string): Promise<Friend[]> {
   });
 }
 
+export type BlockedUser = {
+  userId: string;
+  displayName: string;
+};
+
+// Unlike fetchFriends above, this never joins profiles — a blocked user
+// (especially once blocking has also unfriended them) has no
+// pending/accepted friend_requests row connecting them to you anymore,
+// so profiles' own SELECT policy would silently filter their row out of
+// any such join. blocks.blocked_display_name exists specifically to
+// avoid needing that join at all — see blockUser above, which captures
+// the name once, at block time.
+export async function fetchBlockedUsers(userId: string): Promise<BlockedUser[]> {
+  const { data: rows, error } = await supabase
+    .from('blocks')
+    .select('blocked_id, blocked_display_name')
+    .eq('blocker_id', userId);
+  if (error) throw error;
+  if (!rows || rows.length === 0) return [];
+
+  return rows.map((row) => ({
+    userId: row.blocked_id,
+    displayName: row.blocked_display_name ?? 'Player',
+  }));
+}
+
 // Ends a friendship by deleting its one shared friend_requests row — see
 // fetchFriends above for why there's only ever one row per pair, not a
 // mirrored row per side. Deleting it is enough to remove the friendship
@@ -257,5 +283,61 @@ export async function removeFriend(requestId: string): Promise<void> {
   if (error) throw error;
   if (!data || data.length === 0) {
     throw new Error("That friendship couldn't be removed — it may already be gone, or you may not have permission.");
+  }
+}
+
+// Blocks one user from another's perspective — writes to the separate
+// `blocks` table (blocker_id/blocked_id/created_at), not friend_requests,
+// since a block should work even against someone who was never actually
+// a friend. `friendRequestId` is optional and purely for the common case
+// of blocking someone you *are* currently friends with: when given, the
+// friendship is also removed once the block is safely in place.
+//
+// Same .select('id') + empty-result-check pattern as removeFriend above
+// (RLS can turn a denied write into a silent no-op rather than an error),
+// except a unique-violation on the insert is treated as success rather
+// than a failure — it just means this pair was already blocked, which is
+// the state we're trying to reach anyway.
+export async function blockUser(
+  blockerId: string,
+  blockedUserId: string,
+  blockedDisplayName: string,
+  friendRequestId?: string
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('blocks')
+    .insert({ blocker_id: blockerId, blocked_id: blockedUserId, blocked_display_name: blockedDisplayName })
+    .select('id');
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    throw new Error("Couldn't block that user — try again.");
+  }
+  if (!error && (!data || data.length === 0)) {
+    throw new Error("Couldn't block that user — try again.");
+  }
+
+  if (friendRequestId) {
+    try {
+      await removeFriend(friendRequestId);
+    } catch {
+      // Best-effort: the block above is the part that matters and has
+      // already succeeded. The friendship row being gone already (or any
+      // other removal hiccup) isn't reported as a block failure.
+    }
+  }
+}
+
+// Undoes a block — same .select('id')-then-check-empty-result pattern as
+// removeFriend above, since RLS can turn a denied delete into a silent
+// "0 rows affected" with no error rather than a thrown one.
+export async function unblockUser(blockerId: string, blockedUserId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('blocks')
+    .delete()
+    .eq('blocker_id', blockerId)
+    .eq('blocked_id', blockedUserId)
+    .select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("Couldn't unblock that user — try again.");
   }
 }

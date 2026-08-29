@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -20,10 +21,13 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 
 
 import { motionDuration, motionEasing } from '../constants/motion';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { useAuth } from '../context/AuthContext';
 import { useOverlay } from '../context/OverlayContext';
 import { PASS_THRESHOLD } from '../context/RoundContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { LeaderboardEntry } from '../lib/leaderboard';
+import { todayKey } from '../lib/streak';
+import { supabase } from '../lib/supabase';
 import { BodyText } from './BodyText';
 import { Label } from './Label';
 import { PressableOpacity } from './PressableOpacity';
@@ -81,6 +85,7 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { setOverlayOpen } = useOverlay();
+  const { user } = useAuth();
 
   // Kept independent of `entry` so the last-open friend's photos stay on
   // screen while the close fade plays, instead of the content vanishing
@@ -159,6 +164,45 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
   const photos = visiblePhotos(renderedEntry);
   const initialPosition = positionForSlot(renderedEntry, initialIndex);
 
+  // Never offered on your own row — only someone else's photo can be
+  // reported. `user` comes from AuthContext, same as every other screen
+  // that gates a control on being signed in as a specific account.
+  const canReport = !!user && renderedEntry.userId !== user.id;
+
+  // Sends one report for whichever photo is on screen right now
+  // (`pageIndex`, kept in sync by handleMomentumScrollEnd above) — not
+  // necessarily the photo the viewer originally opened on.
+  async function submitReport(reason: string) {
+    const slot = photos[pageIndex]?.index ?? initialPosition;
+    try {
+      const { error } = await supabase.from('reports').insert({
+        reporter_id: user?.id,
+        reported_user_id: renderedEntry.userId,
+        reported_display_name: renderedEntry.displayName,
+        photo_slot: slot,
+        date_key: todayKey(),
+        reason,
+      });
+      if (error) throw error;
+      Alert.alert('Report sent', "Thanks. We'll review this.");
+    } catch {
+      Alert.alert('Report not sent', "Couldn't send that report — try again.");
+    }
+  }
+
+  // Same Cancel/destructive-choice Alert.alert shape as
+  // app/(tabs)/friends.tsx's handleRemoveFriend — kept to exactly these
+  // three reasons plus Cancel so the sheet stays a single iOS alert
+  // (a longer list gets unwieldy); "Other" can be folded in later.
+  function handleReportPress() {
+    Alert.alert('Report this photo?', "Tell us what's wrong. Our team will review it.", [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Inappropriate', onPress: () => submitReport('inappropriate') },
+      { text: 'Spam', onPress: () => submitReport('spam') },
+      { text: 'Harassment', onPress: () => submitReport('harassment') },
+    ]);
+  }
+
   return (
     <Modal visible={modalVisible} transparent animationType="none" onRequestClose={requestClose} statusBarTranslucent>
       <Animated.View style={[styles.backdrop, backdropStyle]} {...panResponder.panHandlers}>
@@ -193,9 +237,21 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
             <BodyText style={styles.name}>{renderedEntry.displayName}</BodyText>
             {renderedEntry.todayAverage !== null && <Label>{renderedEntry.todayAverage}% avg</Label>}
           </View>
-          <PressableOpacity style={styles.closeButton} hitSlop={8} onPress={requestClose}>
-            <Ionicons name="close" size={22} color={colors.textMuted} />
-          </PressableOpacity>
+          <View style={styles.headerActions}>
+            {canReport && (
+              <PressableOpacity
+                style={styles.reportButton}
+                hitSlop={8}
+                onPress={handleReportPress}
+                accessibilityLabel="Report photo"
+              >
+                <Ionicons name="flag-outline" size={20} color={colors.textMuted} />
+              </PressableOpacity>
+            )}
+            <PressableOpacity style={styles.closeButton} hitSlop={8} onPress={requestClose}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </PressableOpacity>
+          </View>
         </View>
       </Animated.View>
     </Modal>
@@ -249,6 +305,20 @@ const styles = StyleSheet.create({
     fontSize: typeScale.button,
   },
   closeButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Groups Report next to Close on the header's trailing edge so they sit
+  // side by side rather than overlapping.
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  // Same fixed 32x32 tap box as closeButton beside it.
+  reportButton: {
     width: 32,
     height: 32,
     alignItems: 'center',

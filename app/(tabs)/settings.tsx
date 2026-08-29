@@ -3,7 +3,7 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -16,6 +16,7 @@ import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
+import { PRIVACY_POLICY_URL } from '../../constants/links';
 import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
 import { motionDuration, motionEasing } from '../../constants/motion';
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +27,7 @@ import { getDailyTarget } from '../../lib/dailyColor';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
 import { getExpoPushTokenAsync, requestNotificationPermissionAsync } from '../../lib/notifications';
 import { fetchNotificationPreference, savePushToken, setNotificationsEnabled } from '../../lib/pushTokens';
+import { supabase } from '../../lib/supabase';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
 
@@ -100,6 +102,12 @@ export default function SettingsScreen() {
   const [notificationsPermissionDenied, setNotificationsPermissionDenied] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+
+  // Delete Account: separate from the notification-saving state above,
+  // since this guards a single one-shot destructive action rather than a
+  // toggle that can be flipped back and forth.
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const userId = user?.id;
   const userEmail = user?.email;
@@ -207,6 +215,44 @@ export default function SettingsScreen() {
     }
   }
 
+  // Guards against a second tap while the first delete is still in
+  // flight — ActionButton has no disabled prop, so this is the only
+  // thing stopping a double-submit.
+  async function handleDeleteAccount() {
+    if (isDeletingAccount) return;
+    Alert.alert(
+      'Delete your account?',
+      'This permanently deletes your account, your scores, and your photos. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleteError(null);
+            setIsDeletingAccount(true);
+            try {
+              const { data, error } = await supabase.functions.invoke('delete-account');
+              if (error || data?.error) {
+                setIsDeletingAccount(false);
+                setDeleteError("Couldn't delete your account. Please try again.");
+                return;
+              }
+              // Left true deliberately: the button should stay disabled
+              // for the brief moment before the auth listener in
+              // AuthContext notices the session is gone and this screen
+              // unmounts, rather than flip back to enabled just before that.
+              await signOut();
+            } catch {
+              setIsDeletingAccount(false);
+              setDeleteError("Couldn't delete your account. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
+
   // The picker component wants a Date, but only its hour/minute matter
   // — the rest of the date is thrown away as soon as it changes.
   const timeAsDate = useMemo(() => {
@@ -270,6 +316,17 @@ export default function SettingsScreen() {
       return;
     }
     setIsTimePickerExpanded((expanded) => !expanded);
+  }
+
+  // A failed link open (no browser available, malformed URL, etc.) isn't
+  // worth interrupting the user over — this just logs and quietly does
+  // nothing, rather than showing an error alert.
+  async function handleOpenPrivacyPolicy() {
+    try {
+      await Linking.openURL(PRIVACY_POLICY_URL);
+    } catch (err) {
+      console.warn('[settings] failed to open privacy policy link', err);
+    }
   }
 
   const swipeHandlers = useTabSwipe(3);
@@ -393,6 +450,11 @@ export default function SettingsScreen() {
                 <View style={styles.authButtonRow}>
                   <ActionButton label="Sign Out" tone="signal" onPress={() => signOut()} />
                 </View>
+
+                <View style={[styles.authButtonRow, styles.deleteButtonRow]}>
+                  <ActionButton label="Delete Account" tone="signal" filled onPress={handleDeleteAccount} />
+                </View>
+                {deleteError && <BodyText style={styles.error}>{deleteError}</BodyText>}
               </>
             ) : (
               <>
@@ -443,6 +505,12 @@ export default function SettingsScreen() {
             </BodyText>
           </View>
         </Panel>
+
+        <View style={styles.footer}>
+          <PressableOpacity onPress={handleOpenPrivacyPolicy}>
+            <BodyText style={[styles.privacyLink, styles.footerNote]}>Privacy Policy</BodyText>
+          </PressableOpacity>
+        </View>
       </ScrollView>
 
       <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
@@ -539,6 +607,12 @@ const styles = StyleSheet.create({
   authButtonRow: {
     alignItems: 'center',
   },
+  // Small separation from Sign Out above — otherwise identical to
+  // authButtonRow.
+  deleteButtonRow: {
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
   error: {
     color: colors.signal,
   },
@@ -593,6 +667,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   footerNote: {
+    textAlign: 'center',
+  },
+  // Deliberately separate from styles.link above — that one stays the
+  // app's plain muted link style (still used by "View Intro Again");
+  // this is the one place a link should look like a conventional
+  // clickable web link (blue, underlined), since it's the one place
+  // that opens an actual external URL rather than an in-app action.
+  privacyLink: {
+    ...fonts.primary,
+    color: colors.link,
+    textDecorationLine: 'underline',
     textAlign: 'center',
   },
 });

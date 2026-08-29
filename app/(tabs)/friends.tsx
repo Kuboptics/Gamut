@@ -18,7 +18,7 @@ import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '..
 import { useAuth } from '../../context/AuthContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getDailyTarget } from '../../lib/dailyColor';
-import { fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
+import { blockUser, fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
 
 // The friends leaderboard — the payoff screen, front and center. Friend
@@ -139,6 +139,47 @@ export default function FriendsScreen() {
     ]);
   }
 
+  // Blocking is heavier than removing — it also ends the friendship (see
+  // lib/friends.ts's blockUser), so the confirmation spells out both
+  // consequences up front rather than just one. Reuses removeError, same
+  // as handleRemoveFriend above, rather than a second error state for
+  // what's ultimately the same "couldn't act on this friend" case.
+  function handleBlockFriend(friend: Friend) {
+    if (!userId) return;
+    Alert.alert(
+      `Block ${friend.displayName}?`,
+      "They won't be able to see your photos or add you again. This also removes them as a friend.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            setRemoveError(null);
+            try {
+              await blockUser(userId, friend.userId, friend.displayName, friend.id);
+              refresh();
+            } catch {
+              setRemoveError("Couldn't block that user — try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // Long-pressing a friend's name used to jump straight to the remove
+  // confirmation; now that there are two destructive choices, it opens
+  // this small menu first — same three-choice shape as
+  // app/friend/[id].tsx's ⋯ menu.
+  function handleFriendMenu(friend: Friend) {
+    Alert.alert(friend.displayName, undefined, [
+      { text: 'Remove friend', style: 'destructive', onPress: () => handleRemoveFriend(friend) },
+      { text: 'Block', style: 'destructive', onPress: () => handleBlockFriend(friend) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
       <AppHeader />
@@ -224,7 +265,7 @@ export default function FriendsScreen() {
                         params: matchedFriend ? { id: entry.userId, requestId: matchedFriend.id } : { id: entry.userId },
                       })
                     }
-                    onRemove={!isYou && matchedFriend ? () => handleRemoveFriend(matchedFriend) : undefined}
+                    onRemove={!isYou && matchedFriend ? () => handleFriendMenu(matchedFriend) : undefined}
                   />
                 );
               })}
@@ -284,10 +325,10 @@ type RowProps = {
   // screen. The chevron next to the name is this tap's hint, the
   // conventional "drill in" meaning for a forward chevron.
   onOpenProfile: () => void;
-  // Undefined on your own row (can't unfriend yourself). When present,
-  // long-pressing the same name opens the remove confirmation
-  // app/friends/manage.tsx uses — moved off a plain tap so a short tap
-  // can mean "view profile" instead without the two gestures colliding.
+  // Undefined on your own row (can't unfriend/block yourself). When
+  // present, long-pressing the same name opens a Remove/Block menu (see
+  // handleFriendMenu) — moved off a plain tap so a short tap can mean
+  // "view profile" instead without the two gestures colliding.
   onRemove?: () => void;
 };
 

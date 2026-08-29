@@ -31,6 +31,11 @@ export const colors = {
   medalGold: '#B3944F',
   medalSilver: '#9CA3AA',
   medalBronze: '#8C6A4E',
+  // Another narrow, deliberate exception: a muted blue reserved for
+  // genuine hyperlinks out of the app (currently just Settings' Privacy
+  // Policy row), so a tappable web link still reads with its familiar
+  // blue-and-underline convention rather than blending into plain text.
+  link: '#6db3f2',
 };
 
 // RN needs fontFamily and fontWeight as separate style properties, so

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '../components/BackButton';
@@ -10,6 +10,7 @@ import { Panel } from '../components/Panel';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { TextField } from '../components/TextField';
+import { PRIVACY_POLICY_URL } from '../constants/links';
 import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { describeAuthError, isValidEmail } from '../lib/authErrors';
@@ -83,6 +84,18 @@ export default function SignUpScreen() {
     router.back();
   }
 
+  // A failed link open (no browser available, malformed URL, etc.) isn't
+  // worth interrupting the user over — this just logs and quietly does
+  // nothing, rather than showing an error alert. Mirrors the same
+  // handler in app/(tabs)/settings.tsx.
+  async function handleOpenPrivacyPolicy() {
+    try {
+      await Linking.openURL(PRIVACY_POLICY_URL);
+    } catch (err) {
+      console.warn('[sign-up] failed to open privacy policy link', err);
+    }
+  }
+
   if (needsEmailConfirmation) {
     return (
       <SafeAreaView style={styles.container}>
@@ -154,6 +167,14 @@ export default function SignUpScreen() {
 
             {error && <BodyText style={styles.error}>{error}</BodyText>}
 
+            <BodyText style={styles.agreement}>
+              By creating an account, you agree not to post objectionable content or abusive behavior, and to our{' '}
+              <BodyText style={styles.privacyLink} onPress={handleOpenPrivacyPolicy}>
+                Privacy Policy
+              </BodyText>
+              .
+            </BodyText>
+
             <PrimaryButton
               label={isSubmitting ? 'Creating Account…' : 'Create Account'}
               onPress={handleSubmit}
@@ -214,6 +235,24 @@ const styles = StyleSheet.create({
     ...fonts.primary,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  // Fine print for the agreement line above Create Account — same
+  // muted/centered approach as styles.link above, its own entry since
+  // this one composes with the nested privacyLink span below rather
+  // than being a single tappable line on its own.
+  agreement: {
+    ...fonts.primary,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  // Deliberately separate from styles.link above — that one stays the
+  // plain muted link style (still used by "Already have an account?");
+  // this is the one place a link should look like a conventional
+  // clickable web link (blue, underlined), matching the same treatment
+  // just added to app/(tabs)/settings.tsx.
+  privacyLink: {
+    color: colors.link,
+    textDecorationLine: 'underline',
   },
   confirmBody: {
     flex: 1,

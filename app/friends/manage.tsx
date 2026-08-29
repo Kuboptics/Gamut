@@ -18,13 +18,17 @@ import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme
 import { useAuth } from '../../context/AuthContext';
 import { getDailyTarget } from '../../lib/dailyColor';
 import {
+  blockUser,
   ensureProfile,
+  fetchBlockedUsers,
   fetchFriends,
   fetchIncomingRequests,
   fetchOutgoingRequests,
   removeFriend,
   respondToRequest,
   sendFriendRequest,
+  unblockUser,
+  type BlockedUser,
   type Friend,
   type IncomingRequest,
   type OutgoingRequest,
@@ -41,6 +45,7 @@ export default function ManageFriendsScreen() {
 
   const [myCode, setMyCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [blocked, setBlocked] = useState<BlockedUser[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
   const [loadError, setLoadError] = useState(false);
@@ -63,6 +68,7 @@ export default function ManageFriendsScreen() {
     fetchIncomingRequests(userId).then(setIncoming).catch(() => setLoadError(true));
     fetchOutgoingRequests(userId).then(setOutgoing).catch(() => setLoadError(true));
     fetchFriends(userId).then(setFriends).catch(() => setLoadError(true));
+    fetchBlockedUsers(userId).then(setBlocked).catch(() => setLoadError(true));
   }, [userId, email]);
 
   useFocusEffect(refresh);
@@ -135,6 +141,56 @@ export default function ManageFriendsScreen() {
             refresh();
           } catch {
             setRemoveError("Couldn't remove that friend — try again.");
+          }
+        },
+      },
+    ]);
+  }
+
+  // Blocking is heavier than removing — it also ends the friendship (see
+  // lib/friends.ts's blockUser), so the confirmation spells out both
+  // consequences up front rather than just one. Reuses removeError, same
+  // as handleRemoveFriend above, rather than a second error state for
+  // what's ultimately the same "couldn't act on this friend" case.
+  function handleBlockFriend(friend: Friend) {
+    Alert.alert(
+      `Block ${friend.displayName}?`,
+      "They won't be able to see your photos or add you again. This also removes them as a friend.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            setRemoveError(null);
+            try {
+              await blockUser(userId, friend.userId, friend.displayName, friend.id);
+              refresh();
+            } catch {
+              setRemoveError("Couldn't block that user — try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // Unblocking is reversible and non-dangerous (unlike Remove/Block above)
+  // — no destructive style on its confirm button, same distinction the
+  // Requests panel already draws between Decline (signal) and Accept
+  // (positive). Reuses removeError, same as the other two handlers above.
+  function handleUnblock(blockedUser: BlockedUser) {
+    Alert.alert(`Unblock ${blockedUser.displayName}?`, "They'll be able to send you a friend request again.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Unblock',
+        onPress: async () => {
+          setRemoveError(null);
+          try {
+            await unblockUser(userId, blockedUser.userId);
+            refresh();
+          } catch {
+            setRemoveError("Couldn't unblock that user — try again.");
           }
         },
       },
@@ -257,11 +313,29 @@ export default function ManageFriendsScreen() {
             friends.map((friend) => (
               <View key={friend.id} style={styles.row}>
                 <BodyText style={styles.rowLabel}>{friend.displayName}</BodyText>
-                <ActionButton label="Remove" tone="signal" onPress={() => handleRemoveFriend(friend)} />
+                <View style={styles.rowActions}>
+                  <ActionButton label="Remove" tone="signal" onPress={() => handleRemoveFriend(friend)} />
+                  <ActionButton label="Block" tone="signal" onPress={() => handleBlockFriend(friend)} />
+                </View>
               </View>
             ))
           )}
         </Panel>
+
+        {/* Most people never block anyone — an always-visible empty
+            section here would just be clutter, so this panel doesn't
+            exist at all until there's someone in it. */}
+        {blocked.length > 0 && (
+          <Panel style={styles.panel} hue={todayHue}>
+            <Label>Blocked</Label>
+            {blocked.map((blockedUser) => (
+              <View key={blockedUser.userId} style={styles.row}>
+                <BodyText style={styles.rowLabel}>{blockedUser.displayName}</BodyText>
+                <ActionButton label="Unblock" tone="neutral" onPress={() => handleUnblock(blockedUser)} />
+              </View>
+            ))}
+          </Panel>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
