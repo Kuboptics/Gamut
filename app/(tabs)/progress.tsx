@@ -9,9 +9,10 @@ import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { TickRule } from '../../components/TickRule';
-import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
+import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { useStreak } from '../../context/StreakContext';
+import { useThemedStyles } from '../../context/ThemeContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { contrastTextColor } from '../../lib/color';
 import { getDailyTarget } from '../../lib/dailyColor';
@@ -53,6 +54,7 @@ const CHAIN_DAYS = 7;
 // Pulled straight from HistoryContext, so it's never out of sync with
 // the calendar below it.
 function StreakChain({ history }: { history: Record<string, DayRecord> }) {
+  const styles = useThemedStyles(makeStyles);
   const today = new Date();
 
   return (
@@ -85,6 +87,7 @@ function StreakChain({ history }: { history: Record<string, DayRecord> }) {
 export default function ProgressScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(makeStyles);
   const { currentStreak, isLoaded: streakLoaded } = useStreak();
   const { history } = useHistory();
   const isActive = streakLoaded && currentStreak > 0;
@@ -198,7 +201,7 @@ export default function ProgressScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

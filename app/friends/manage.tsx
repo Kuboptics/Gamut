@@ -14,8 +14,9 @@ import { Panel } from '../../components/Panel';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
 import { TextField } from '../../components/TextField';
-import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { fonts, radius, spacing, typeScale, type ThemeColors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useThemedStyles } from '../../context/ThemeContext';
 import { getDailyTarget } from '../../lib/dailyColor';
 import {
   blockUser,
@@ -42,6 +43,7 @@ export default function ManageFriendsScreen() {
   const { user } = useAuth();
   const userId = user!.id;
   const todayHue = getDailyTarget().hue;
+  const styles = useThemedStyles(makeStyles);
 
   const [myCode, setMyCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -350,7 +352,7 @@ export default function ManageFriendsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

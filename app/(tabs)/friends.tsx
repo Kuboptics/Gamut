@@ -14,8 +14,9 @@ import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
-import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
+import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getDailyTarget } from '../../lib/dailyColor';
 import { blockUser, fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
@@ -32,6 +33,8 @@ export default function FriendsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, isLoaded: isAuthLoaded } = useAuth();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const userId = user?.id ?? null;
   const todayHue = getDailyTarget().hue;
 
@@ -295,6 +298,8 @@ export default function FriendsScreen() {
 // would just be repeating the same signal a second time — the "Pass"/
 // "Fail" word stays too, but plain, since the number already colors it.
 function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (!entry.playedToday) {
     return (
       <View style={styles.statusRow}>
@@ -332,20 +337,26 @@ type RowProps = {
   onRemove?: () => void;
 };
 
-// The 1/2/3 medal tints — same colors.medalGold/Silver/Bronze values as
-// before, now applied to both the rank number and the dedicated medal
-// bar column below (rank 4+ gets neither).
-const RANK_TINT: Record<number, string> = {
-  1: colors.medalGold,
-  2: colors.medalSilver,
-  3: colors.medalBronze,
-};
-
 function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onOpenProfile, onRemove }: RowProps & { rank: number }) {
-  const medalColor = RANK_TINT[rank];
+  const { colors, scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // The 1/2/3 medal tints — same colors.medalGold/Silver/Bronze values as
+  // before (medalGold/Silver/Bronze are deliberately identical in both
+  // dark and light — see constants/theme.ts), applied to both the rank
+  // number and the dedicated medal bar column below (rank 4+ gets
+  // neither). Built per render, not a module-level constant, so this
+  // keeps following the theme like every other resolved color here —
+  // see ActionButton's own TONE_COLOR for why a module-level version of
+  // this would freeze instead.
+  const rankTint: Record<number, string> = {
+    1: colors.medalGold,
+    2: colors.medalSilver,
+    3: colors.medalBronze,
+  };
+  const medalColor = rankTint[rank];
   const name = isYou ? 'You' : entry.displayName;
   return (
-    <View style={[styles.row, rank === 1 && styles.rowRankOne]}>
+    <View style={[styles.row, rank === 1 && styles.rowRankOne, rank === 1 && scheme === 'light' && styles.rowRankOneLight]}>
       <View style={styles.rankColumn}>
         <Label style={[styles.rank, medalColor ? { color: medalColor } : null]}>{rank}</Label>
       </View>
@@ -377,7 +388,7 @@ function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onOpenProfile, onRemo
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -460,6 +471,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.medalGold,
     backgroundColor: 'rgba(179, 148, 79, 0.08)',
+  },
+  // The same 8%-opacity gold reads noticeably fainter on a light row
+  // than on a dark one (alpha blending scales with whatever's under
+  // it), so light mode uses a higher alpha (0.12) to land at a visually
+  // comparable "barely there" tint instead of the mathematically same
+  // but visually weaker one. Applied as an override on top of
+  // rowRankOne above (unchanged), so dark mode stays byte-for-byte as
+  // it was.
+  rowRankOneLight: {
+    backgroundColor: 'rgba(179, 148, 79, 0.12)',
   },
   rankColumn: {
     width: 32,

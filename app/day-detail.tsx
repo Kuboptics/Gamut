@@ -11,9 +11,10 @@ import { Panel } from '../components/Panel';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { ReadoutText } from '../components/ReadoutText';
 import { StatusDot } from '../components/StatusDot';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { useHistory } from '../context/HistoryContext';
 import { PASS_THRESHOLD } from '../context/RoundContext';
+import { useThemedStyles } from '../context/ThemeContext';
 import { nameColor } from '../lib/colorName';
 
 // Parses a "YYYY-MM-DD" key back into a local-time Date. Building the
@@ -32,6 +33,7 @@ export default function DayDetailScreen() {
   const router = useRouter();
   const { dateKey } = useLocalSearchParams<{ dateKey: string }>();
   const { history } = useHistory();
+  const styles = useThemedStyles(makeStyles);
   const record = dateKey ? history[dateKey] : undefined;
 
   if (!record) {
@@ -106,7 +108,7 @@ export default function DayDetailScreen() {
 
 const THUMBNAIL_SIZE = 48;
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

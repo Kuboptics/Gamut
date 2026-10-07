@@ -1,6 +1,7 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { colors, fonts } from '../constants/theme';
+import { fonts, type ThemeColors } from '../constants/theme';
+import { useThemedStyles } from '../context/ThemeContext';
 
 // Bold system font — reserved for large "hero" display moments only: the
 // big score/percentage, the streak number, and screen titles (the
@@ -9,12 +10,14 @@ import { colors, fonts } from '../constants/theme';
 // The one exception is the Gamut wordmark in the shared header, which
 // stays Fugaz One (see components/AppHeader.tsx's wordmarkTitle style).
 export function HeroText({ style, ...props }: TextProps) {
+  const styles = useThemedStyles(makeStyles);
   return <Text {...props} style={[styles.base, style]} />;
 }
 
-const styles = StyleSheet.create({
-  base: {
-    ...fonts.display,
-    color: colors.textPrimary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    base: {
+      ...fonts.display,
+      color: colors.textPrimary,
+    },
+  });

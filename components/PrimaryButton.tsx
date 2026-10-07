@@ -1,6 +1,7 @@
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, fonts, radius, spacing, typeScale } from '../constants/theme';
+import { fonts, radius, spacing, typeScale, type ThemeColors } from '../constants/theme';
+import { useThemedStyles } from '../context/ThemeContext';
 import { BodyText } from './BodyText';
 import { PressableOpacity } from './PressableOpacity';
 
@@ -16,6 +17,7 @@ type PrimaryButtonProps = {
 // a secondary action next to it should stay plain text, not a second
 // PrimaryButton, so the contrast still means something.
 export function PrimaryButton({ label, onPress, style }: PrimaryButtonProps) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <PressableOpacity style={[styles.button, style]} onPress={onPress}>
       <BodyText style={styles.label}>{label}</BodyText>
@@ -23,16 +25,17 @@ export function PrimaryButton({ label, onPress, style }: PrimaryButtonProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: colors.textPrimary,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  label: {
-    ...fonts.primarySemiBold,
-    fontSize: typeScale.button,
-    color: colors.background,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    button: {
+      backgroundColor: colors.textPrimary,
+      borderRadius: radius.sm,
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+    },
+    label: {
+      ...fonts.primarySemiBold,
+      fontSize: typeScale.button,
+      color: colors.background,
+    },
+  });

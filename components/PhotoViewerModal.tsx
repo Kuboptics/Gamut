@@ -21,10 +21,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { motionDuration, motionEasing } from '../constants/motion';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useOverlay } from '../context/OverlayContext';
 import { PASS_THRESHOLD } from '../context/RoundContext';
+import { useTheme, useThemedStyles } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { LeaderboardEntry } from '../lib/leaderboard';
 import { todayKey } from '../lib/streak';
@@ -111,6 +112,7 @@ function PhotoFrame({
   area: { top: number; left: number; width: number; height: number };
 }) {
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const styles = useThemedStyles(makeStyles);
 
   useEffect(() => {
     setImageSize(null);
@@ -153,6 +155,8 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
   const reducedMotion = useReducedMotion();
   const { setOverlayOpen } = useOverlay();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   // Kept independent of `entry` so the last-open friend's photos stay on
   // screen while the close fade plays, instead of the content vanishing
@@ -365,7 +369,7 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: colors.background,

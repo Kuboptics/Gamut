@@ -16,9 +16,10 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
 import { StatusDot } from '../../components/StatusDot';
 import { TickRule } from '../../components/TickRule';
-import { colors, fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale } from '../../constants/theme';
+import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound, type RoundSlots } from '../../context/RoundContext';
+import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { wcagContrastTextColor } from '../../lib/color';
 import { getColorFact } from '../../lib/colorFacts';
@@ -73,6 +74,7 @@ function SpecimenCard({
 }) {
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [footerHeight, setFooterHeight] = useState(0);
+  const styles = useThemedStyles(makeStyles);
 
   function handleAreaLayout(event: LayoutChangeEvent) {
     const { width, height } = event.nativeEvent.layout;
@@ -120,6 +122,7 @@ function SpecimenCard({
 // an arbitrary fill, not on black, and both shrink to fit rather than
 // overflow on a long name or a narrow screen.
 function SwatchLabel({ name, hex }: { name: string; hex: string }) {
+  const styles = useThemedStyles(makeStyles);
   const textColor = wcagContrastTextColor(hex);
   return (
     <View style={styles.swatchLabel} pointerEvents="none">
@@ -141,6 +144,7 @@ function SwatchLabel({ name, hex }: { name: string; hex: string }) {
 // photos.
 function RoundProgress({ slots }: { slots: RoundSlots }) {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
 
   function handlePress(index: number, slot: string | null) {
     if (slot) {
@@ -180,6 +184,7 @@ export default function TodayScreen() {
   const { history } = useHistory();
   const todayRecord = history[todayKey()];
   const swipeHandlers = useTabSwipe(0);
+  const styles = useThemedStyles(makeStyles);
 
   return (
     <View style={styles.swipeArea} {...swipeHandlers}>
@@ -194,6 +199,7 @@ export default function TodayScreen() {
 function CaptureToday() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(makeStyles);
   const { slots, isLoaded } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
@@ -268,6 +274,8 @@ function CaptureToday() {
 function CompletedToday({ record }: { record: DayRecord }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const colorName = nameColor(record.hue, record.saturation, record.lightness);
   const passed = record.outcome === 'passed';
 
@@ -322,7 +330,7 @@ function CompletedToday({ record }: { record: DayRecord }) {
 const TICK_SIZE = 18;
 const THUMBNAIL_SIZE = 56;
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   swipeArea: {
     flex: 1,
   },

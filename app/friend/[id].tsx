@@ -18,9 +18,10 @@ import { PressableOpacity } from '../../components/PressableOpacity';
 import { ReadoutText } from '../../components/ReadoutText';
 import { StatusDot } from '../../components/StatusDot';
 import { motionDuration, motionEasing } from '../../constants/motion';
-import { colors, fonts, radius, spacing, typeScale } from '../../constants/theme';
+import { fonts, radius, spacing, typeScale, type ThemeColors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { PASS_THRESHOLD } from '../../context/RoundContext';
+import { useTheme, useThemedStyles, type ColorScheme } from '../../context/ThemeContext';
 import { blockUser, removeFriend } from '../../lib/friends';
 import { fetchFriendHistory, type FriendDay, type FriendHistory } from '../../lib/friendProfile';
 
@@ -59,19 +60,37 @@ function formatMonthDayLabel(dateKey: string): string {
 // the number TierKeyModal's interval text below is written around — one
 // list, so the four cutoffs can't drift out of sync between the badge
 // and the key.
-type MedalTier = { label: string; interval: string; color: string; icon: 'diamond' | 'medal'; min: number };
+//
+// darkColor/lightColor: these render as actual text/icon color (see
+// tierColor below), so each needs its own per-mode value, not just one
+// hex reused — the original (now darkColor) values are all under 2.3:1
+// against a light surface, nowhere near readable as text there.
+// lightColor keeps the same hue, darkened until it clears 4.5:1 against
+// both lightColors.background and lightColors.surface.
+type MedalTier = {
+  label: string;
+  interval: string;
+  darkColor: string;
+  lightColor: string;
+  icon: 'diamond' | 'medal';
+  min: number;
+};
 
 // Ordered highest cutoff first — medalForAverage below relies on that
 // order to find the first (i.e. highest) tier an average qualifies for.
 const MEDAL_TIERS: MedalTier[] = [
-  { label: 'Diamond', interval: '70% and above', color: '#5CD5E0', icon: 'diamond', min: 70 },
-  { label: 'Gold', interval: '60–69%', color: '#E0A24E', icon: 'medal', min: 60 },
-  { label: 'Silver', interval: '50–59%', color: '#B8BEC6', icon: 'medal', min: 50 },
-  { label: 'Bronze', interval: 'Below 50%', color: '#C77B4A', icon: 'medal', min: 0 },
+  { label: 'Diamond', interval: '70% and above', darkColor: '#5CD5E0', lightColor: '#197B84', icon: 'diamond', min: 70 },
+  { label: 'Gold', interval: '60–69%', darkColor: '#E0A24E', lightColor: '#9A641B', icon: 'medal', min: 60 },
+  { label: 'Silver', interval: '50–59%', darkColor: '#B8BEC6', lightColor: '#66707E', icon: 'medal', min: 50 },
+  { label: 'Bronze', interval: 'Below 50%', darkColor: '#C77B4A', lightColor: '#A35E32', icon: 'medal', min: 0 },
 ];
 
 function medalForAverage(average: number): MedalTier {
   return MEDAL_TIERS.find((tier) => average >= tier.min) ?? MEDAL_TIERS[MEDAL_TIERS.length - 1];
+}
+
+function tierColor(tier: MedalTier, scheme: ColorScheme): string {
+  return scheme === 'dark' ? tier.darkColor : tier.lightColor;
 }
 
 // Renders the right glyph for a tier — DiamondIcon/MedalIcon are local
@@ -101,6 +120,8 @@ export default function FriendProfileScreen() {
   const { id, requestId } = useLocalSearchParams<{ id: string; requestId?: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const isOwnProfile = id === user?.id;
 
   // null = still loading. One combined object now that the summary strip
@@ -286,9 +307,12 @@ function SummaryCard({ history, isOwnProfile }: { history: FriendHistory; isOwnP
   // modal's open/closed-ness has no bearing on anything outside this
   // component.
   const [tierModalVisible, setTierModalVisible] = useState(false);
+  const { colors, scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   if (!history.best || history.average === null) return null;
   const tier = medalForAverage(history.average);
+  const resolvedTierColor = tierColor(tier, scheme);
 
   return (
     <Panel style={styles.summaryCard}>
@@ -318,8 +342,8 @@ function SummaryCard({ history, isOwnProfile }: { history: FriendHistory; isOwnP
               (still 22 there — left alone; a matching bump there
               crowded the two-line text next to it in a plain list row,
               where the summary badge has a whole cell to itself). */}
-          <TierIcon icon={tier.icon} size={36} color={tier.color} />
-          <Label style={{ color: tier.color }}>{tier.label}</Label>
+          <TierIcon icon={tier.icon} size={36} color={resolvedTierColor} />
+          <Label style={{ color: resolvedTierColor }}>{tier.label}</Label>
         </PressableOpacity>
       </View>
 
@@ -376,9 +400,14 @@ type TierKeyModalProps = {
 // above; nothing about this modal's state is shared with the rest of the
 // screen.
 function TierKeyModal({ visible, onClose, currentTier, isOwnProfile }: TierKeyModalProps) {
+  const { colors, scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View entering={FadeIn.duration(motionDuration.base).easing(motionEasing)} style={styles.tierModalBackdrop}>
+      <Animated.View
+        entering={FadeIn.duration(motionDuration.base).easing(motionEasing)}
+        style={[styles.tierModalBackdrop, scheme === 'light' && styles.tierModalBackdropLight]}
+      >
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         <Panel style={styles.tierModalCard}>
           <View style={styles.tierModalHeader}>
@@ -392,7 +421,7 @@ function TierKeyModal({ visible, onClose, currentTier, isOwnProfile }: TierKeyMo
             const isCurrent = isOwnProfile && tier.label === currentTier.label;
             return (
               <View key={tier.label} style={[styles.tierRow, isCurrent && styles.tierRowCurrent]}>
-                <TierIcon icon={tier.icon} size={22} color={tier.color} />
+                <TierIcon icon={tier.icon} size={22} color={tierColor(tier, scheme)} />
                 <View style={styles.tierRowText}>
                   <BodyText style={styles.tierRowLabel}>{tier.label}</BodyText>
                   <Label>{tier.interval}</Label>
@@ -411,6 +440,7 @@ function TierKeyModal({ visible, onClose, currentTier, isOwnProfile }: TierKeyMo
 // with that day's own hue via Panel — same pattern day-detail.tsx uses
 // for a past day's record, not today's live target hue.
 function DayPanel({ day }: { day: FriendDay }) {
+  const styles = useThemedStyles(makeStyles);
   const passed = day.outcome === 'passed';
   const verdictStyle = passed ? styles.pass : styles.fail;
 
@@ -444,7 +474,7 @@ function DayPanel({ day }: { day: FriendDay }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -569,6 +599,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: spacing.xl,
+  },
+  // The same 0.7 black scrim reads much heavier on a light screen than
+  // on a dark one (it's dimming a near-white backdrop down to mid-gray,
+  // not a near-black one down to a slightly different near-black) — a
+  // lower opacity here keeps the perceived "dim, don't black out" weight
+  // closer to how the dark-mode scrim actually reads. Applied as an
+  // override on top of tierModalBackdrop above (unchanged) rather than
+  // a second full style, so dark mode stays byte-for-byte as it was.
+  tierModalBackdropLight: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   tierModalCard: {
     width: '100%',
