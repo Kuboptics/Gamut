@@ -2,7 +2,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { motionDuration, motionEasing } from '../constants/motion';
-import { colors, radius, spacing } from '../constants/theme';
+import { colors, spacing } from '../constants/theme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { PressableOpacity } from './PressableOpacity';
 
@@ -19,9 +19,8 @@ type FriendThumbnailsProps = {
 const SIZE = 56;
 
 // A row of a friend's shots for today, shown next to their name on the
-// leaderboard. Same square-photo convention as app/day-detail.tsx
-// (hairline border, no radius — photographic content stays hard-edged
-// per CLAUDE.md), sized big enough to actually read at a glance while
+// leaderboard. Hairline border, lightly rounded (see styles.thumbnail
+// below) — sized big enough to actually read at a glance while
 // still sitting compactly in a list row. The `Image` component scales
 // whatever source it's given down to this 56pt box, so the exact source
 // resolution never matters here — lib/thumbnails.ts stores these at
@@ -88,7 +87,10 @@ const styles = StyleSheet.create({
     height: SIZE,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.sm,
+    // A literal value, not the shared radius.sm token — this
+    // leaderboard row's own rounding, slightly tighter than radius.sm.
+    borderRadius: 6,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   // A muted dark block, one step lighter than the panel it sits on,

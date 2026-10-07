@@ -12,6 +12,7 @@ import {
   View,
   useWindowDimensions,
   type GestureResponderEvent,
+  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type PanResponderGestureState,
@@ -48,6 +49,12 @@ const SWATCH_SIZE = 32;
 // its own horizontal swipe, just rotated to the vertical axis.
 const DISMISS_DISTANCE_THRESHOLD = 60;
 
+// How far the photo card sits from the screen's left/right edges, and
+// from the header/footer above and below it — keeps it reading as a
+// card rather than a full-bleed image.
+const PHOTO_HORIZONTAL_MARGIN = spacing.lg;
+const PHOTO_VERTICAL_GAP = spacing.lg;
+
 function isVerticalDownDrag(gesture: PanResponderGestureState): boolean {
   return gesture.dy > 10 && gesture.dy > Math.abs(gesture.dx) * 2;
 }
@@ -73,6 +80,66 @@ function positionForSlot(entry: LeaderboardEntry, slotIndex: number): number {
   );
 }
 
+// "contain" sizing math: the largest box with `image`'s aspect ratio
+// that still fits inside `available` — same result resizeMode="contain"
+// would render, just computed ahead of time so PhotoFrame below can
+// size its wrapper to exactly the visible picture (not a letterboxed
+// bounding box), for rounding the picture's own corners.
+function containSize(
+  image: { width: number; height: number } | null,
+  available: { width: number; height: number }
+): { width: number; height: number } {
+  if (!image || available.width <= 0 || available.height <= 0) return available;
+  const imageRatio = image.width / image.height;
+  const availableRatio = available.width / available.height;
+  if (imageRatio > availableRatio) return { width: available.width, height: available.width / imageRatio };
+  return { width: available.height * imageRatio, height: available.height };
+}
+
+// One page's photo, placed inside the card-shaped `area` left clear of
+// the header above and the footer below (see PhotoViewerModal's own
+// layout math). Fetches the photo's own natural size once per url, then
+// sizes a wrapper view to exactly its rendered dimensions within `area`
+// — same approach as app/photo-viewer.tsx's pictureBox — so the rounded,
+// clipped corners land on the picture itself, not on empty letterboxed
+// space around it.
+function PhotoFrame({
+  url,
+  area,
+}: {
+  url: string;
+  area: { top: number; left: number; width: number; height: number };
+}) {
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    setImageSize(null);
+    let cancelled = false;
+    Image.getSize(
+      url,
+      (imageWidth, imageHeight) => {
+        if (!cancelled) setImageSize({ width: imageWidth, height: imageHeight });
+      },
+      () => {
+        // Unreadable size; pictureBox falls back to the full area below.
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  const pictureBox = containSize(imageSize, area);
+
+  return (
+    <View style={[styles.photoSlot, area]}>
+      <View style={[styles.pictureBox, pictureBox]}>
+        <Image source={{ uri: url }} style={styles.photo} resizeMode="contain" />
+      </View>
+    </View>
+  );
+}
+
 // Full-screen viewer for a friend's 3 shots from today's round, opened by
 // tapping a thumbnail on the leaderboard (see app/(tabs)/friends.tsx). A
 // horizontally paged FlatList — plain React Native, no new dependency —
@@ -94,6 +161,13 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
   const [modalVisible, setModalVisible] = useState(false);
   const [pageIndex, setPageIndex] = useState(initialIndex);
   const opacity = useSharedValue(0);
+
+  // Measured via onLayout on the header/footer views below, so the photo
+  // card's own area (see photoArea below) can leave exactly enough room
+  // for whatever height those two actually render at — a name that wraps
+  // to two lines, say — rather than a guessed constant.
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(0);
 
   useEffect(() => {
     if (!entry) return;
@@ -159,6 +233,31 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
     }
   }
 
+  function handleHeaderLayout(event: LayoutChangeEvent) {
+    setHeaderHeight(event.nativeEvent.layout.height);
+  }
+
+  function handleFooterLayout(event: LayoutChangeEvent) {
+    setFooterHeight(event.nativeEvent.layout.height);
+  }
+
+  // The card-shaped area each page's photo must stay inside: below the
+  // header (its own top offset, insets.top + spacing.sm, plus its
+  // measured height) and above the footer (its own bottom offset,
+  // insets.bottom + spacing.xl, plus its measured height), with
+  // PHOTO_VERTICAL_GAP clearing both and PHOTO_HORIZONTAL_MARGIN on
+  // each side. Before the first layout pass, headerHeight/footerHeight
+  // are still 0 — the area is briefly too tall until the real
+  // measurements arrive and this recomputes.
+  const headerBottom = insets.top + spacing.sm + headerHeight;
+  const footerTop = height - (insets.bottom + spacing.xl) - footerHeight;
+  const photoArea = {
+    top: headerBottom + PHOTO_VERTICAL_GAP,
+    left: PHOTO_HORIZONTAL_MARGIN,
+    width: Math.max(0, width - PHOTO_HORIZONTAL_MARGIN * 2),
+    height: Math.max(0, footerTop - PHOTO_VERTICAL_GAP - (headerBottom + PHOTO_VERTICAL_GAP)),
+  };
+
   if (!renderedEntry) return null;
 
   const photos = visiblePhotos(renderedEntry);
@@ -222,8 +321,12 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
           onMomentumScrollEnd={handleMomentumScrollEnd}
           renderItem={({ item }) => (
             <Pressable style={[styles.page, { width, height }]} onPress={requestClose}>
-              <Image source={{ uri: item.url }} style={styles.photo} resizeMode="contain" />
-              <View style={[styles.footer, { bottom: insets.bottom + spacing.xl }]} pointerEvents="none">
+              <PhotoFrame url={item.url} area={photoArea} />
+              <View
+                style={[styles.footer, { bottom: insets.bottom + spacing.xl }]}
+                onLayout={handleFooterLayout}
+                pointerEvents="none"
+              >
                 <View style={[styles.swatch, { backgroundColor: renderedEntry.hex ?? colors.border }]} />
                 <BodyText style={styles.score}>{renderedEntry.scores[item.index]}%</BodyText>
                 <StatusDot passed={renderedEntry.scores[item.index] >= PASS_THRESHOLD} />
@@ -232,7 +335,11 @@ export function PhotoViewerModal({ entry, initialIndex, onClose }: PhotoViewerMo
           )}
         />
 
-        <View style={[styles.header, { top: insets.top + spacing.sm }]} pointerEvents="box-none">
+        <View
+          style={[styles.header, { top: insets.top + spacing.sm }]}
+          onLayout={handleHeaderLayout}
+          pointerEvents="box-none"
+        >
           <View>
             <BodyText style={styles.name}>{renderedEntry.displayName}</BodyText>
             {renderedEntry.todayAverage !== null && <Label>{renderedEntry.todayAverage}% avg</Label>}
@@ -267,6 +374,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // The card-shaped slot computed as `photoArea` — position: 'absolute'
+  // so its top/left/width/height (passed via the `area` prop) place it
+  // precisely between the header and footer, ignoring `page`'s own
+  // flex centering above.
+  photoSlot: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Sized by pictureBox (see containSize) to the picture's own rendered
+  // dimensions within photoSlot, so overflow: hidden clips exactly at
+  // the picture's edges — the rounding lands on the photo itself, never
+  // on letterboxed empty space around it.
+  pictureBox: {
+    overflow: 'hidden',
+    borderRadius: 20,
+    borderCurve: 'continuous',
+  },
   photo: {
     width: '100%',
     height: '100%',
@@ -285,6 +410,8 @@ const styles = StyleSheet.create({
     height: SWATCH_SIZE,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 6,
+    borderCurve: 'continuous',
   },
   score: {
     ...fonts.primarySemiBold,

@@ -131,10 +131,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.lg,
   },
+  // The bordered box around the photo — overflow: 'hidden' clips the
+  // picture itself to the rounded corners below, not just the border.
   photo: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 20,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   tipRow: {
     alignItems: 'center',
@@ -156,6 +161,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 14,
+    borderCurve: 'continuous',
   },
   keepButton: {
     flex: 1,
@@ -163,6 +170,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     borderWidth: 1,
     borderColor: colors.textPrimary,
+    borderRadius: 14,
+    borderCurve: 'continuous',
   },
   // Matches PrimaryButton's own label treatment, so Retake/Keep read as
   // the same button-label tier even though these two are outlined

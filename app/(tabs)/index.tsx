@@ -133,14 +133,20 @@ function SwatchLabel({ name, hex }: { name: string; hex: string }) {
   );
 }
 
-// A row of the round's 3 slots — every tile is tappable, filled or not,
-// and always jumps to Capture for that specific slot: an empty tile
-// starts it fresh, a filled one retakes it, leaving the other two
-// slots untouched. Never shows a score, only the photos.
+// A row of the round's 3 slots — every tile is tappable. An empty tile
+// jumps straight to Capture to start it fresh. A filled tile opens that
+// photo full screen first (see app/photo-viewer.tsx), which offers its
+// own Retake button back into Capture for the same slot — leaving the
+// other two slots untouched either way. Never shows a score, only the
+// photos.
 function RoundProgress({ slots }: { slots: RoundSlots }) {
   const router = useRouter();
 
-  function handlePress(index: number) {
+  function handlePress(index: number, slot: string | null) {
+    if (slot) {
+      router.push({ pathname: '/photo-viewer', params: { photoUri: slot, slot: String(index) } });
+      return;
+    }
     router.push({ pathname: '/capture', params: { slot: String(index) } });
   }
 
@@ -149,13 +155,13 @@ function RoundProgress({ slots }: { slots: RoundSlots }) {
       {slots.map((slot, index) => {
         if (!slot) {
           return (
-            <PressableOpacity key={index} onPress={() => handlePress(index)}>
+            <PressableOpacity key={index} onPress={() => handlePress(index, slot)}>
               <View style={styles.thumbnailEmpty} />
             </PressableOpacity>
           );
         }
         return (
-          <PressableOpacity key={index} onPress={() => handlePress(index)}>
+          <PressableOpacity key={index} onPress={() => handlePress(index, slot)}>
             <Image source={{ uri: slot }} style={styles.thumbnail} />
           </PressableOpacity>
         );
@@ -440,17 +446,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
+  // overflow: 'hidden' clips the picture itself (not just the border) to
+  // the rounded corners — thumbnailEmpty has no picture to clip, but
+  // gets the same radius/curve so an empty slot still looks like the
+  // same shape as a filled one.
   thumbnail: {
     width: THUMBNAIL_SIZE,
     height: THUMBNAIL_SIZE,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 8,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   thumbnailEmpty: {
     width: THUMBNAIL_SIZE,
     height: THUMBNAIL_SIZE,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 8,
+    borderCurve: 'continuous',
   },
   roundInfo: {
     textAlign: 'center',
@@ -461,8 +476,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   // A nested layer of depth: a secondary-surface chip under each photo,
-  // one step lighter than the panel it sits in. The chip (chrome) gets
-  // the small radius; the photo itself stays hard-edged.
+  // one step lighter than the panel it sits in — its own small radius,
+  // separate from photoThumb's own rounding below.
   photoCell: {
     alignItems: 'center',
     gap: spacing.xs,
@@ -470,9 +485,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondarySurface,
     borderRadius: radius.sm,
   },
+  // Same rounding as RoundProgress's thumbnail/thumbnailEmpty above, so
+  // every small photo on this screen reads as one consistent shape.
   photoThumb: {
     width: THUMBNAIL_SIZE,
     height: THUMBNAIL_SIZE,
+    borderRadius: 8,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   photoScoreRow: {
     flexDirection: 'row',
