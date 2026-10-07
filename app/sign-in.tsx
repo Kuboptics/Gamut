@@ -10,8 +10,9 @@ import { Panel } from '../components/Panel';
 import { PressableOpacity } from '../components/PressableOpacity';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { TextField } from '../components/TextField';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
+import { useThemedStyles } from '../context/ThemeContext';
 import { describeAuthError, isValidEmail } from '../lib/authErrors';
 
 // Signs into an existing Supabase account. Purely optional groundwork for
@@ -19,6 +20,7 @@ import { describeAuthError, isValidEmail } from '../lib/authErrors';
 export default function SignInScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
+  const styles = useThemedStyles(makeStyles);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -104,7 +106,7 @@ export default function SignInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

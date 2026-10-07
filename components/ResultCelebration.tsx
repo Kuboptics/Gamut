@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { motionEasing } from '../constants/motion';
-import { colors } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const PARTICLE_COUNT = 14;
@@ -22,19 +22,6 @@ const PARTICLE_COUNT = 14;
 const BURST_DURATION_MS = 650;
 const SHAKE_STEP_MS = 90;
 
-// Kept in the monochrome + green palette, with one or two red particles
-// mixed in — small squares, not confetti shapes, so it stays "precise
-// instrument" rather than "party".
-const PARTICLE_COLORS = [
-  colors.textPrimary,
-  colors.positive,
-  colors.positive,
-  colors.textPrimary,
-  colors.positive,
-  colors.textMuted,
-  colors.signal,
-];
-
 type ResultCelebrationProps = {
   passed: boolean;
   children: ReactNode;
@@ -45,12 +32,30 @@ type ResultCelebrationProps = {
 // skipped entirely when the OS "Reduce Motion" setting is on.
 export function ResultCelebration({ passed, children }: ResultCelebrationProps) {
   const reducedMotion = useReducedMotion();
+  const { colors } = useTheme();
 
   // One shared value drives every particle (see Particle below) instead
   // of each particle owning its own — the burst only ever needs two
   // shared values total in this whole component.
   const progress = useSharedValue(0);
   const shakeX = useSharedValue(0);
+
+  // Kept in the monochrome + green palette, with one or two red
+  // particles mixed in — small squares, not confetti shapes, so it
+  // stays "precise instrument" rather than "party". Built from the live
+  // theme (not a module-level constant) so it re-tints with light mode.
+  const particleColors = useMemo(
+    () => [
+      colors.textPrimary,
+      colors.positive,
+      colors.positive,
+      colors.textPrimary,
+      colors.positive,
+      colors.textMuted,
+      colors.signal,
+    ],
+    [colors]
+  );
 
   // Each particle's direction/distance/color is a fixed plain number,
   // computed once on mount — not itself animated.
@@ -59,10 +64,10 @@ export function ResultCelebration({ passed, children }: ResultCelebrationProps) 
       Array.from({ length: PARTICLE_COUNT }, (_, index) => {
         const angle = (index / PARTICLE_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
         const distance = 36 + Math.random() * 28;
-        const color = PARTICLE_COLORS[index % PARTICLE_COLORS.length];
+        const color = particleColors[index % particleColors.length];
         return { angle, distance, color };
       }),
-    []
+    [particleColors]
   );
 
   useEffect(() => {

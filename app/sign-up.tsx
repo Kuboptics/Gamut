@@ -11,8 +11,9 @@ import { PressableOpacity } from '../components/PressableOpacity';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { TextField } from '../components/TextField';
 import { PRIVACY_POLICY_URL } from '../constants/links';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
+import { useThemedStyles } from '../context/ThemeContext';
 import { describeAuthError, isValidEmail } from '../lib/authErrors';
 import { ensureProfile } from '../lib/friends';
 import { randomDisplayName } from '../lib/randomName';
@@ -25,6 +26,7 @@ const MAX_DISPLAY_NAME_LENGTH = 40;
 export default function SignUpScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
+  const styles = useThemedStyles(makeStyles);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -208,7 +210,7 @@ export default function SignUpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

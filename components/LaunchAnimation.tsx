@@ -11,7 +11,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { REVEAL_STAGGER_MS, motionDuration, motionEasing } from '../constants/motion';
-import { colors, fonts, spacing } from '../constants/theme';
+import { fonts, spacing, type ThemeColors } from '../constants/theme';
+import { useThemedStyles } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const WORDMARK = 'GAMUT';
@@ -46,6 +47,7 @@ type LaunchAnimationProps = {
 // overlay out and calls onDone.
 export function LaunchAnimation({ onDone }: LaunchAnimationProps) {
   const reducedMotion = useReducedMotion();
+  const styles = useThemedStyles(makeStyles);
 
   // Normal mode: the "G" is already showing at mount (so the first
   // letter appears the instant the overlay mounts) and the rest reveals
@@ -189,7 +191,7 @@ export function LaunchAnimation({ onDone }: LaunchAnimationProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,

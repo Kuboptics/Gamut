@@ -2,7 +2,8 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { motionDuration, motionEasing } from '../constants/motion';
-import { colors, spacing, typeScale } from '../constants/theme';
+import { spacing, typeScale, type ThemeColors } from '../constants/theme';
+import { useTheme, useThemedStyles } from '../context/ThemeContext';
 import { markIntroSeen } from '../lib/introStorage';
 import { BodyText } from './BodyText';
 import { HeroText } from './HeroText';
@@ -32,6 +33,9 @@ type IntroModalProps = {
 // funnel through the same handler) marks the intro as seen, so it never
 // reappears on its own again afterward.
 export function IntroModal({ visible, onClose }: IntroModalProps) {
+  const { scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   function handleClose() {
     markIntroSeen().catch(() => {});
     onClose();
@@ -39,7 +43,10 @@ export function IntroModal({ visible, onClose }: IntroModalProps) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent>
-      <Animated.View entering={FadeIn.duration(motionDuration.base).easing(motionEasing)} style={styles.backdrop}>
+      <Animated.View
+        entering={FadeIn.duration(motionDuration.base).easing(motionEasing)}
+        style={[styles.backdrop, scheme === 'light' && styles.backdropLight]}
+      >
         <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
         <Panel style={styles.card}>
           <HeroText style={styles.title}>How To Play</HeroText>
@@ -60,13 +67,21 @@ export function IntroModal({ visible, onClose }: IntroModalProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: spacing.xl,
+  },
+  // Lighter scrim for light mode only — the same 0.7-opacity black reads
+  // as near-total blackout once the card and page behind it are both
+  // pale, rather than the deliberate dim-the-room effect it is on a
+  // dark page. Matches the same dark-unchanged/light-0.4 treatment
+  // already used for the Tier Key modal's scrim (see app/friend/[id].tsx).
+  backdropLight: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   card: {
     width: '100%',
