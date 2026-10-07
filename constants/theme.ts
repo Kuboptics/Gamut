@@ -1,8 +1,17 @@
 // The "monochrome instrument" design system from CLAUDE.md. Everything on
 // screen is black/white/grey except the game's own colors (target, shot,
 // score) — those are the only place hues are allowed to appear.
+//
+// Theme foundation: darkColors is today's palette, byte-for-byte
+// unchanged. lightColors is its light counterpart, same keys, checked
+// against WCAG AA (4.5:1) for every text color — see the one adjustment
+// noted below. `colors` keeps pointing at darkColors so the 33 existing
+// files that import it directly keep rendering exactly as before; they
+// migrate to context/ThemeContext.tsx's useTheme() in a later step, not
+// this one.
+export type ThemeColors = typeof darkColors;
 
-export const colors = {
+export const darkColors = {
   // A softened near-black rather than pure #000000 — a neutral (no
   // color/blue cast) charcoal ramp, less harsh against white/surface
   // elements while still reading as "black" at a glance.
@@ -37,6 +46,38 @@ export const colors = {
   // blue-and-underline convention rather than blending into plain text.
   link: '#6db3f2',
 };
+
+// Light counterpart to darkColors above, same keys and same narrow
+// exceptions (signal/positive/flame/medal*/link stay the same hues in
+// both modes — only the neutral chrome flips). Every text color
+// (textPrimary, textMuted, signal, positive, link) was checked at
+// 4.5:1 (WCAG AA) against both background and surface below.
+export const lightColors: ThemeColors = {
+  background: '#F5F3EF',
+  surface: '#FFFFFF',
+  border: '#E3E0DA',
+  secondarySurface: '#ECE9E3',
+  textPrimary: '#121212',
+  textMuted: '#6B6B6B',
+  signal: '#D71921',
+  // Adjusted from the proposed #2E8B3E, which failed 4.5:1 as text on
+  // both light surfaces (3.88:1 on background, 4.30:1 on surface).
+  // Darkened only (same hue ~130°, same saturation, lower lightness)
+  // until it cleared 4.5:1 against the worse of the two — now 4.52:1 on
+  // background, 5.01:1 on surface.
+  positive: '#2A7F39',
+  flame: '#E8481A',
+  medalGold: '#B3944F',
+  medalSilver: '#9CA3AA',
+  medalBronze: '#8C6A4E',
+  link: '#1A6FC4',
+};
+
+// Still today's palette, unchanged in shape or behavior — every current
+// caller keeps resolving to darkColors exactly as before. Migrating a
+// file to the resolved theme instead of this static export is a
+// separate, later step.
+export const colors: ThemeColors = darkColors;
 
 // RN needs fontFamily and fontWeight as separate style properties, so
 // each entry here is a small style fragment — spread it (`...fonts.x`)
