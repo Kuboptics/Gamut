@@ -14,11 +14,12 @@ import { PixelSampler } from '../components/PixelSampler';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ResultCelebration } from '../components/ResultCelebration';
 import { motionDuration, motionEasing, REVEAL_STAGGER_MS } from '../constants/motion';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { useHistory } from '../context/HistoryContext';
 import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
 import { useSync } from '../context/SyncContext';
+import { useThemedStyles } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { findBestPatch } from '../lib/bestPatch';
 import type { RGB } from '../lib/color';
@@ -107,6 +108,7 @@ export default function SummaryScreen() {
   const { recordDay } = useHistory();
   const { pushRecord, pushThumbnails } = useSync();
   const target = getDailyTarget();
+  const styles = useThemedStyles(makeStyles);
 
   const photoUris = slots.filter((uri): uri is string => uri !== null);
   const allFilled = photoUris.length === PHOTOS_PER_ROUND;
@@ -285,7 +287,7 @@ export default function SummaryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
