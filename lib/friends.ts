@@ -44,6 +44,10 @@ export type Friend = {
   id: string;
   userId: string;
   displayName: string;
+  // Null when the friend's profile has no code (shouldn't happen once
+  // ensureProfile has run) or the row couldn't be read — rendering just
+  // skips showing a code rather than showing a placeholder.
+  friendCode?: string | null;
 };
 
 // Returns the signed-in user's friend code + display name, creating the
@@ -182,6 +186,16 @@ async function fetchDisplayNames(userIds: string[]): Promise<Map<string, string>
   return new Map((data ?? []).map((profile) => [profile.id, profile.display_name]));
 }
 
+// Looks up friend codes for a set of user ids — kept separate from
+// fetchDisplayNames above so that helper's other callers (incoming and
+// outgoing requests) keep selecting only display_name, unchanged.
+async function fetchFriendCodes(userIds: string[]): Promise<Map<string, string | null>> {
+  if (userIds.length === 0) return new Map();
+  const { data, error } = await supabase.from('profiles').select('id, friend_code').in('id', userIds);
+  if (error) throw error;
+  return new Map((data ?? []).map((profile) => [profile.id, profile.friend_code]));
+}
+
 // Incoming pending requests, joined with the sender's display name.
 export async function fetchIncomingRequests(userId: string): Promise<IncomingRequest[]> {
   const { data: requests, error } = await supabase
@@ -231,10 +245,15 @@ export async function fetchFriends(userId: string): Promise<Friend[]> {
   if (!rows || rows.length === 0) return [];
 
   const friendIds = rows.map((row) => (row.sender_id === userId ? row.receiver_id : row.sender_id));
-  const nameById = await fetchDisplayNames(friendIds);
+  const [nameById, codeById] = await Promise.all([fetchDisplayNames(friendIds), fetchFriendCodes(friendIds)]);
   return rows.map((row) => {
     const friendId = row.sender_id === userId ? row.receiver_id : row.sender_id;
-    return { id: row.id, userId: friendId, displayName: nameById.get(friendId) ?? 'Player' };
+    return {
+      id: row.id,
+      userId: friendId,
+      displayName: nameById.get(friendId) ?? 'Player',
+      friendCode: codeById.get(friendId) ?? null,
+    };
   });
 }
 

@@ -312,7 +312,16 @@ export default function ManageFriendsScreen() {
           ) : (
             friends.map((friend) => (
               <View key={friend.id} style={styles.row}>
-                <BodyText style={styles.rowLabel}>{friend.displayName}</BodyText>
+                <View style={styles.rowIdentity}>
+                  <BodyText style={styles.rowLabel} numberOfLines={1}>
+                    {friend.displayName}
+                  </BodyText>
+                  {!!friend.friendCode && (
+                    <BodyText style={styles.rowCode} numberOfLines={1}>
+                      {friend.friendCode}
+                    </BodyText>
+                  )}
+                </View>
                 <View style={styles.rowActions}>
                   <ActionButton label="Remove" tone="signal" onPress={() => handleRemoveFriend(friend)} />
                   <ActionButton label="Block" tone="signal" onPress={() => handleBlockFriend(friend)} />
@@ -423,12 +432,27 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  // flex: 1 so this column (not rowActions) absorbs the row's available
+  // width — needed now that a long name has to truncate instead of
+  // pushing the Remove/Block buttons off an iPhone SE-width screen.
+  rowIdentity: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   rowLabel: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
   },
+  // Their friend code, under the name — small and muted, same role as
+  // friendCode style in app/friend/[id].tsx's header.
+  rowCode: {
+    color: colors.textMuted,
+    fontSize: typeScale.label,
+    marginTop: spacing.xs,
+  },
   rowActions: {
     flexDirection: 'row',
     gap: spacing.sm,
+    flexShrink: 0,
   },
 });

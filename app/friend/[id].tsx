@@ -141,6 +141,7 @@ export default function FriendProfileScreen() {
   );
 
   const displayName = history?.displayName ?? '';
+  const friendCode = history?.friendCode ?? null;
   const days = history?.days ?? null;
 
   // Reuses lib/friends.ts's removeFriend — same confirmation copy as the
@@ -216,6 +217,11 @@ export default function FriendProfileScreen() {
           <HeroText style={styles.title} numberOfLines={1}>
             {displayName}
           </HeroText>
+          {!!friendCode && (
+            <ReadoutText style={styles.friendCode} numberOfLines={1}>
+              {friendCode}
+            </ReadoutText>
+          )}
         </View>
         {/* Trailing slot, scoped to this screen's own header row (not the
             shared AppHeader — that component has no trailing slot and
@@ -457,6 +463,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeScale.value,
+  },
+  // Their friend code, shown under the name — muted so it doesn't compete
+  // with the title, same ReadoutText treatment "Your Code" uses on
+  // app/friends/manage.tsx, just smaller to fit this header row.
+  friendCode: {
+    fontSize: typeScale.button,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
   // Balances the BackButton on the left so the title stays visually
   // centered — same trick as app/day-detail.tsx's header. Rendered in

@@ -35,6 +35,9 @@ export type FriendDay = {
 
 export type FriendHistory = {
   displayName: string;
+  // Null when the profile row has no code or couldn't be read — the
+  // header just skips showing a code rather than a placeholder.
+  friendCode: string | null;
   days: FriendDay[];
   // Same streak every other screen shows for this player (see
   // lib/streak.ts's computeStreak, also used by lib/leaderboard.ts) — not
@@ -64,7 +67,7 @@ type RoundRow = {
 
 export async function fetchFriendHistory(friendId: string): Promise<FriendHistory> {
   const [{ data: profile, error: profileError }, { data: rows, error: roundsError }] = await Promise.all([
-    supabase.from('profiles').select('display_name').eq('id', friendId).maybeSingle(),
+    supabase.from('profiles').select('display_name, friend_code').eq('id', friendId).maybeSingle(),
     supabase
       .from('round_results')
       .select('date_key, hex, hue, saturation, lightness, color_name, scores, average, outcome')
@@ -103,6 +106,7 @@ export async function fetchFriendHistory(friendId: string): Promise<FriendHistor
 
   return {
     displayName: profile?.display_name ?? 'Player',
+    friendCode: profile?.friend_code ?? null,
     days,
     streak,
     average,
