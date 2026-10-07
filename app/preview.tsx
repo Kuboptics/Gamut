@@ -9,8 +9,9 @@ import { BodyText } from '../components/BodyText';
 import { Divider } from '../components/Divider';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { PHOTOS_PER_ROUND, useRound } from '../context/RoundContext';
+import { useThemedStyles } from '../context/ThemeContext';
 
 // A short instrument-style hint, low on the screen. Rotates by shot
 // number within the round rather than randomly, so each new photo in a
@@ -26,6 +27,7 @@ export default function PreviewScreen() {
   const params = useLocalSearchParams<{ photoUri: string; slot: string }>();
   const router = useRouter();
   const { setSlot } = useRound();
+  const styles = useThemedStyles(makeStyles);
 
   const parsedSlot = Number(params.slot);
   const isValidSlot = Number.isInteger(parsedSlot) && parsedSlot >= 0 && parsedSlot < PHOTOS_PER_ROUND;
@@ -110,7 +112,7 @@ export default function PreviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -175,9 +177,13 @@ const styles = StyleSheet.create({
   },
   // Matches PrimaryButton's own label treatment, so Retake/Keep read as
   // the same button-label tier even though these two are outlined
-  // rather than solid.
+  // rather than solid. Explicit color (same reasoning as
+  // app/photo-viewer.tsx's own actionLabel) rather than left to
+  // BodyText's default, so this label can never drift out of sync with
+  // container/retakeButton/keepButton's own theme-resolved colors.
   actionLabel: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
+    color: colors.textPrimary,
   },
 });

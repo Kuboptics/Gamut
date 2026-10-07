@@ -169,22 +169,33 @@ export function getDailyTarget(date: Date = new Date()): DailyTarget {
 const CHROME_SATURATION = 35;
 const CHROME_DARK_BACKGROUND_LIGHTNESS = 10; // close to darkColors.surface's own depth
 const CHROME_DARK_BORDER_LIGHTNESS = 20;
-// A barely-there wash, the light-mode counterpart to the dark values
-// above — same saturation, just inverted toward white instead of black.
-// Checked against both lightColors text colors across every hue: worst
-// case 4.61:1 (textMuted on the L95 background) and 3.48:1 (textMuted on
-// the L86 border) — see the theme-migration report for the full numbers.
-const CHROME_LIGHT_BACKGROUND_LIGHTNESS = 95;
-const CHROME_LIGHT_BORDER_LIGHTNESS = 86;
+
+// Light mode's own tint — a separate, stronger saturation than the dark
+// set above, so it still reads as a real color wash instead of nearly
+// vanishing into the near-white background. To tune: lower
+// CHROME_LIGHT_BACKGROUND_LIGHTNESS for a more saturated-looking fill
+// (then re-run the per-hue WCAG check below — going lower risks text
+// contrast); CHROME_LIGHT_BORDER_LIGHTNESS only shapes the hairline
+// edge and isn't held to the same 4.5:1 bar, since no text ever sits
+// directly on a 1px border. These values are the result of starting
+// from saturation 50 / background 90 / border 78, then raising only
+// the background lightness in steps of 1 until every light-mode text
+// color (textPrimary, textMuted, positive, signal, link) cleared 4.5:1
+// against the tinted background across all 360 hues — see the
+// migration report for the full per-hue numbers.
+const CHROME_LIGHT_SATURATION = 50;
+const CHROME_LIGHT_BACKGROUND_LIGHTNESS = 97;
+const CHROME_LIGHT_BORDER_LIGHTNESS = 78;
 
 export function getDailyAccent(
   hue: number,
   scheme: 'dark' | 'light' = 'dark'
 ): { background: string; border: string } {
+  const saturation = scheme === 'dark' ? CHROME_SATURATION : CHROME_LIGHT_SATURATION;
   const backgroundLightness = scheme === 'dark' ? CHROME_DARK_BACKGROUND_LIGHTNESS : CHROME_LIGHT_BACKGROUND_LIGHTNESS;
   const borderLightness = scheme === 'dark' ? CHROME_DARK_BORDER_LIGHTNESS : CHROME_LIGHT_BORDER_LIGHTNESS;
   return {
-    background: rgbToHex(hslToRgb(hue, CHROME_SATURATION, backgroundLightness)),
-    border: rgbToHex(hslToRgb(hue, CHROME_SATURATION, borderLightness)),
+    background: rgbToHex(hslToRgb(hue, saturation, backgroundLightness)),
+    border: rgbToHex(hslToRgb(hue, saturation, borderLightness)),
   };
 }

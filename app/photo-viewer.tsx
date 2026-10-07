@@ -5,8 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyText } from '../components/BodyText';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { PHOTOS_PER_ROUND } from '../context/RoundContext';
+import { useThemedStyles } from '../context/ThemeContext';
 
 // "contain" sizing math: the largest box with `image`'s aspect ratio
 // that still fits inside `available` — same result resizeMode="contain"
@@ -34,6 +35,7 @@ function containSize(
 export default function PhotoViewerScreen() {
   const params = useLocalSearchParams<{ photoUri: string; slot?: string }>();
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
 
   const parsedSlot = Number(params.slot);
   const isValidSlot = Number.isInteger(parsedSlot) && parsedSlot >= 0 && parsedSlot < PHOTOS_PER_ROUND;
@@ -98,7 +100,7 @@ export default function PhotoViewerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -158,8 +160,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderCurve: 'continuous',
   },
+  // Explicit color, not left to BodyText's own default — before this
+  // screen was migrated, BodyText (already theme-aware) could resolve
+  // to the live theme's text color while this screen's own background
+  // stayed on the static dark value, so a light-mode viewer showed
+  // near-black text (correctly resolved) on a background stuck dark
+  // (not yet resolved) — invisible by coincidence, not by design. Now
+  // that container/closeButton/retakeButton all read from the same
+  // `colors` this label does, they can't drift apart like that again.
   actionLabel: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
+    color: colors.textPrimary,
   },
 });

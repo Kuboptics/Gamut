@@ -8,7 +8,8 @@ import { BackButton } from '../components/BackButton';
 import { BodyText } from '../components/BodyText';
 import { Label } from '../components/Label';
 import { PressableOpacity } from '../components/PressableOpacity';
-import { colors, fonts, radius, spacing, typeScale } from '../constants/theme';
+import { fonts, radius, spacing, typeScale, type ThemeColors } from '../constants/theme';
+import { useTheme, useThemedStyles } from '../context/ThemeContext';
 
 type ChoiceOptionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -18,6 +19,8 @@ type ChoiceOptionProps = {
 
 // One of the two equally-weighted option blocks below.
 function ChoiceOption({ icon, label, onPress }: ChoiceOptionProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <PressableOpacity style={styles.option} onPress={onPress}>
       <Ionicons name={icon} size={40} color={colors.textPrimary} />
@@ -32,6 +35,7 @@ function ChoiceOption({ icon, label, onPress }: ChoiceOptionProps) {
 // equal visual weight, since they're equally valid ways to add a photo.
 export default function CaptureScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   // Which of the round's 3 slots this photo is for — passed straight
   // through from wherever this screen was opened (Today's primary
   // button, or tapping a specific slot to (re)capture just that one).
@@ -78,7 +82,7 @@ export default function CaptureScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
