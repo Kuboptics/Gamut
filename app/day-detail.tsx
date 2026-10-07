@@ -197,6 +197,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     height: THUMBNAIL_SIZE,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 8,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   photoScore: {
     ...fonts.primarySemiBold,

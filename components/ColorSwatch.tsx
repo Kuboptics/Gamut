@@ -44,9 +44,13 @@ const makeStyles = (colors: ThemeColors) =>
       aspectRatio: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      borderRadius: 20,
+      borderCurve: 'continuous',
     },
     small: {
       width: 130,
       height: 130,
+      borderRadius: 14,
+      borderCurve: 'continuous',
     },
   });
