@@ -2,11 +2,11 @@
   "expo": {
     "name": "Gamut",
     "slug": "kubopticss-project",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "colorhunt",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.kuboptics.gamut",
       "supportsTablet": false,
