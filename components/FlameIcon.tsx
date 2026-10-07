@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { colors } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type FlameIconProps = {
@@ -28,6 +28,7 @@ type FlameIconProps = {
 // perfectly-synced pulse. Both use withRepeat + a sine ease, never a
 // spring, so there's no bounce.
 export function FlameIcon({ size }: FlameIconProps) {
+  const { colors } = useTheme();
   const reducedMotion = useReducedMotion();
   const scaleFlicker = useSharedValue(0.5);
   const opacityFlicker = useSharedValue(0.5);

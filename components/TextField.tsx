@@ -1,7 +1,8 @@
 import { forwardRef, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
-import { colors, fonts, radius, spacing, typeScale } from '../constants/theme';
+import { fonts, radius, spacing, typeScale, type ThemeColors } from '../constants/theme';
+import { useTheme, useThemedStyles } from '../context/ThemeContext';
 import { Label } from './Label';
 
 type TextFieldProps = TextInputProps & {
@@ -26,6 +27,9 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   { label, style, accessory, ...props },
   ref
 ) {
+  const { colors, scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   return (
     <View style={styles.container}>
       <Label>{label}</Label>
@@ -33,6 +37,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         <TextInput
           ref={ref}
           placeholderTextColor={colors.textMuted}
+          keyboardAppearance={scheme}
           style={[styles.input, accessory ? styles.inputWithAccessory : null, style]}
           autoCorrect={false}
           {...props}
@@ -43,41 +48,42 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   );
 });
 
-const styles = StyleSheet.create({
-  container: {
-    gap: spacing.sm,
-  },
-  // position: 'relative' so `accessory` below can overlay the input's
-  // own right edge instead of sitting beside it as a flex sibling —
-  // the input is this row's only normal-flow child, so it already
-  // stretches to the row's full width via the default column/stretch
-  // layout, no explicit flex/width needed.
-  row: {
-    position: 'relative',
-  },
-  input: {
-    ...fonts.primary,
-    fontSize: typeScale.button,
-    color: colors.textPrimary,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  // Clears room for the chip so typed text never runs under it. A
-  // literal pixel value sized to this app's one "RANDOM" chip rather
-  // than measured, since it's the only accessory that exists today.
-  inputWithAccessory: {
-    paddingRight: 96,
-  },
-  // Centered over the input's full height, inset from its right edge.
-  accessory: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    right: spacing.sm,
-    justifyContent: 'center',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: spacing.sm,
+    },
+    // position: 'relative' so `accessory` below can overlay the input's
+    // own right edge instead of sitting beside it as a flex sibling —
+    // the input is this row's only normal-flow child, so it already
+    // stretches to the row's full width via the default column/stretch
+    // layout, no explicit flex/width needed.
+    row: {
+      position: 'relative',
+    },
+    input: {
+      ...fonts.primary,
+      fontSize: typeScale.button,
+      color: colors.textPrimary,
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    // Clears room for the chip so typed text never runs under it. A
+    // literal pixel value sized to this app's one "RANDOM" chip rather
+    // than measured, since it's the only accessory that exists today.
+    inputWithAccessory: {
+      paddingRight: 96,
+    },
+    // Centered over the input's full height, inset from its right edge.
+    accessory: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      right: spacing.sm,
+      justifyContent: 'center',
+    },
+  });

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { colors } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { PressableOpacity } from './PressableOpacity';
 
 // A small, subtle back affordance for screens that sit on top of the
@@ -11,6 +11,7 @@ import { PressableOpacity } from './PressableOpacity';
 // this screen — Today, given how this app's screens navigate.
 export function BackButton() {
   const router = useRouter();
+  const { colors } = useTheme();
 
   return (
     <PressableOpacity style={styles.button} hitSlop={8} onPress={() => router.back()}>
@@ -19,6 +20,8 @@ export function BackButton() {
   );
 }
 
+// Layout only — no color here, so this stays a plain top-level style
+// rather than needing useThemedStyles.
 const styles = StyleSheet.create({
   button: {
     width: 32,

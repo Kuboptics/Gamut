@@ -1,7 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, fonts, spacing, typeScale } from '../constants/theme';
+import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
+import { useThemedStyles } from '../context/ThemeContext';
 import { useCountdown } from '../lib/CountdownContext';
 import { formatCountdown } from '../lib/countdown';
 import { HeroText } from './HeroText';
@@ -20,6 +21,7 @@ import { ReadoutText } from './ReadoutText';
 // rely on the layout's SafeAreaView for that).
 export function AppHeader() {
   const countdownMs = useCountdown();
+  const styles = useThemedStyles(makeStyles);
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -40,47 +42,48 @@ export function AppHeader() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: colors.background,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    backgroundColor: colors.background,
-  },
-  wordmark: {
-    alignItems: 'flex-start',
-  },
-  // The brand wordmark. Unlike every other HeroText usage, this one stays
-  // Fugaz One (fonts.wordmark), the one deliberate exception to the
-  // app-wide switch to the system font — see constants/theme.ts.
-  wordmarkTitle: {
-    ...fonts.wordmark,
-    fontSize: 22,
-  },
-  signature: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  countdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    backgroundColor: colors.signal,
-  },
-  countdownLabel: {
-    textAlign: 'right',
-  },
-  countdownValue: {
-    fontSize: typeScale.value,
-    textAlign: 'right',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    safeArea: {
+      backgroundColor: colors.background,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+      backgroundColor: colors.background,
+    },
+    wordmark: {
+      alignItems: 'flex-start',
+    },
+    // The brand wordmark. Unlike every other HeroText usage, this one stays
+    // Fugaz One (fonts.wordmark), the one deliberate exception to the
+    // app-wide switch to the system font — see constants/theme.ts.
+    wordmarkTitle: {
+      ...fonts.wordmark,
+      fontSize: 22,
+    },
+    signature: {
+      fontSize: 10,
+      marginTop: 2,
+    },
+    countdown: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      backgroundColor: colors.signal,
+    },
+    countdownLabel: {
+      textAlign: 'right',
+    },
+    countdownValue: {
+      fontSize: typeScale.value,
+      textAlign: 'right',
+    },
+  });

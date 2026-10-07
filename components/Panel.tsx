@@ -1,6 +1,7 @@
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { colors, radius } from '../constants/theme';
+import { radius, type ThemeColors } from '../constants/theme';
+import { useTheme, useThemedStyles } from '../context/ThemeContext';
 import { getDailyAccent } from '../lib/dailyColor';
 
 type PanelProps = ViewProps & {
@@ -17,7 +18,12 @@ type PanelProps = ViewProps & {
 // Today screen). Callers add their own layout — flex/margin/padding/
 // gap — via `style`; this only owns the surface/border/radius.
 export function Panel({ style, hue, ...props }: PanelProps) {
-  const accent = hue !== undefined ? getDailyAccent(hue) : null;
+  // Reads scheme itself, so every one of the 20 `<Panel hue={...}>`
+  // call sites across the app needs no change to pick up light mode —
+  // getDailyAccent just resolves a different (still legible) wash.
+  const { scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const accent = hue !== undefined ? getDailyAccent(hue, scheme) : null;
   return (
     <View
       {...props}
@@ -30,11 +36,12 @@ export function Panel({ style, hue, ...props }: PanelProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    panel: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+  });

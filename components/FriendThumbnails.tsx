@@ -2,7 +2,8 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { motionDuration, motionEasing } from '../constants/motion';
-import { colors, spacing } from '../constants/theme';
+import { spacing, type ThemeColors } from '../constants/theme';
+import { useThemedStyles } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { PressableOpacity } from './PressableOpacity';
 
@@ -63,6 +64,7 @@ export function FriendThumbnails({ urls, style, onPressPhoto }: FriendThumbnails
 function Thumbnail({ url }: { url: string }) {
   const reducedMotion = useReducedMotion();
   const opacity = useSharedValue(0);
+  const styles = useThemedStyles(makeThumbnailStyles);
   const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   function handleLoad() {
@@ -77,29 +79,35 @@ function Thumbnail({ url }: { url: string }) {
   );
 }
 
+// Layout only — no color here, so this stays a plain top-level style
+// rather than needing useThemedStyles.
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  thumbnail: {
-    width: SIZE,
-    height: SIZE,
-    borderWidth: 1,
-    borderColor: colors.border,
-    // A literal value, not the shared radius.sm token — this
-    // leaderboard row's own rounding, slightly tighter than radius.sm.
-    borderRadius: 6,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  // A muted dark block, one step lighter than the panel it sits on,
-  // standing in for the photo until it's actually decoded and ready to show.
-  placeholder: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.secondarySurface,
-  },
-  image: {
-    ...StyleSheet.absoluteFillObject,
-  },
 });
+
+const makeThumbnailStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    thumbnail: {
+      width: SIZE,
+      height: SIZE,
+      borderWidth: 1,
+      borderColor: colors.border,
+      // A literal value, not the shared radius.sm token — this
+      // leaderboard row's own rounding, slightly tighter than radius.sm.
+      borderRadius: 6,
+      borderCurve: 'continuous',
+      overflow: 'hidden',
+    },
+    // A muted dark block, one step lighter than the panel it sits on,
+    // standing in for the photo until it's actually decoded and ready to show.
+    placeholder: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.secondarySurface,
+    },
+    image: {
+      ...StyleSheet.absoluteFillObject,
+    },
+  });

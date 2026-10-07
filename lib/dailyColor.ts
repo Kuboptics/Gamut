@@ -164,14 +164,27 @@ export function getDailyTarget(date: Date = new Date()): DailyTarget {
 // depends on the day's own brightness. That's what keeps every day's tint
 // legible: no matter how loud or pale the actual target color is (see
 // HUE/SATURATION/LIGHTNESS_RANGE above), the chrome itself is always this
-// dark and this muted, so text on top of it stays readable every day.
+// dark (or, in light mode, this pale) and this muted, so text on top of
+// it stays readable every day.
 const CHROME_SATURATION = 35;
-const CHROME_BACKGROUND_LIGHTNESS = 10; // close to colors.surface's own depth
-const CHROME_BORDER_LIGHTNESS = 20;
+const CHROME_DARK_BACKGROUND_LIGHTNESS = 10; // close to darkColors.surface's own depth
+const CHROME_DARK_BORDER_LIGHTNESS = 20;
+// A barely-there wash, the light-mode counterpart to the dark values
+// above — same saturation, just inverted toward white instead of black.
+// Checked against both lightColors text colors across every hue: worst
+// case 4.61:1 (textMuted on the L95 background) and 3.48:1 (textMuted on
+// the L86 border) — see the theme-migration report for the full numbers.
+const CHROME_LIGHT_BACKGROUND_LIGHTNESS = 95;
+const CHROME_LIGHT_BORDER_LIGHTNESS = 86;
 
-export function getDailyAccent(hue: number): { background: string; border: string } {
+export function getDailyAccent(
+  hue: number,
+  scheme: 'dark' | 'light' = 'dark'
+): { background: string; border: string } {
+  const backgroundLightness = scheme === 'dark' ? CHROME_DARK_BACKGROUND_LIGHTNESS : CHROME_LIGHT_BACKGROUND_LIGHTNESS;
+  const borderLightness = scheme === 'dark' ? CHROME_DARK_BORDER_LIGHTNESS : CHROME_LIGHT_BORDER_LIGHTNESS;
   return {
-    background: rgbToHex(hslToRgb(hue, CHROME_SATURATION, CHROME_BACKGROUND_LIGHTNESS)),
-    border: rgbToHex(hslToRgb(hue, CHROME_SATURATION, CHROME_BORDER_LIGHTNESS)),
+    background: rgbToHex(hslToRgb(hue, CHROME_SATURATION, backgroundLightness)),
+    border: rgbToHex(hslToRgb(hue, CHROME_SATURATION, borderLightness)),
   };
 }

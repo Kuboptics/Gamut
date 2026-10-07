@@ -1,16 +1,11 @@
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, fonts, radius, spacing, typeScale } from '../constants/theme';
+import { fonts, radius, spacing, typeScale } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { BodyText } from './BodyText';
 import { PressableOpacity } from './PressableOpacity';
 
 export type ActionButtonTone = 'positive' | 'signal' | 'neutral';
-
-const TONE_COLOR: Record<ActionButtonTone, string> = {
-  positive: colors.positive,
-  signal: colors.signal,
-  neutral: colors.textPrimary,
-};
 
 type ActionButtonProps = {
   label: string;
@@ -27,7 +22,17 @@ type ActionButtonProps = {
 // (reserved for one full-width main action per screen) and deliberately
 // not plain tappable text.
 export function ActionButton({ label, tone, onPress, filled = false }: ActionButtonProps) {
-  const toneColor = TONE_COLOR[tone];
+  const { colors } = useTheme();
+  // Built fresh every render (not a module-level constant) so a theme
+  // switch is reflected immediately — a constant built once at import
+  // time would freeze at whichever palette was active the first time
+  // this module loaded, and never update again.
+  const toneColorByTone: Record<ActionButtonTone, string> = {
+    positive: colors.positive,
+    signal: colors.signal,
+    neutral: colors.textPrimary,
+  };
+  const toneColor = toneColorByTone[tone];
   const style: StyleProp<ViewStyle> = [
     styles.button,
     filled ? { backgroundColor: toneColor } : { borderColor: toneColor },
@@ -40,6 +45,8 @@ export function ActionButton({ label, tone, onPress, filled = false }: ActionBut
   );
 }
 
+// Layout/text metrics only — no color here, so this stays a plain
+// top-level style rather than needing useThemedStyles.
 const styles = StyleSheet.create({
   button: {
     borderWidth: StyleSheet.hairlineWidth,
