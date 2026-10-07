@@ -10,6 +10,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { ActionButton } from '../../components/ActionButton';
 import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
+import { Divider } from '../../components/Divider';
 import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
@@ -27,6 +28,7 @@ import { getDailyTarget } from '../../lib/dailyColor';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
 import { getExpoPushTokenAsync, requestNotificationPermissionAsync } from '../../lib/notifications';
 import { fetchNotificationPreference, savePushToken, setNotificationsEnabled } from '../../lib/pushTokens';
+import { randomDisplayName } from '../../lib/randomName';
 import { supabase } from '../../lib/supabase';
 
 const MAX_DISPLAY_NAME_LENGTH = 40;
@@ -215,6 +217,14 @@ export default function SettingsScreen() {
     }
   }
 
+  // Just fills the field, the same way typing would — isNameDirty above
+  // re-derives from displayNameInput on its own, so this naturally makes
+  // Save appear without any separate dirty-flag or save call here.
+  function handleRandomName() {
+    setNameError(null);
+    setDisplayNameInput(randomDisplayName(displayNameInput));
+  }
+
   // Guards against a second tap while the first delete is still in
   // flight — ActionButton has no disabled prop, so this is the only
   // thing stopping a double-submit.
@@ -270,9 +280,13 @@ export default function SettingsScreen() {
     setTime(date.getHours(), date.getMinutes());
   }
 
-  // The Save button is always mounted beside the field — only its
-  // opacity animates — so it never resizes the row or shifts the input
-  // beside it the way the old label-swapping button did.
+  // The Save row is always mounted below the field — only its opacity
+  // animates. It was briefly also height/marginTop-animated against a
+  // measured "natural height", but that measurement was circular (taken
+  // from inside the very View whose height the animation was also
+  // driving) and stayed stuck near 0, which is why Save stopped
+  // appearing — reverted to the known-working opacity-only fade until a
+  // real height can be added without guessing (see PART A note below).
   const reducedMotion = useReducedMotion();
   const saveButtonOpacity = useSharedValue(0);
   useEffect(() => {
@@ -281,7 +295,10 @@ export default function SettingsScreen() {
       ? target
       : withTiming(target, { duration: motionDuration.base, easing: motionEasing });
   }, [isNameDirty, reducedMotion, saveButtonOpacity]);
-  const saveButtonAnimatedStyle = useAnimatedStyle(() => ({ opacity: saveButtonOpacity.value }));
+
+  const saveButtonAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: saveButtonOpacity.value,
+  }));
 
   // The expanded height is a known fixed value (IOS_PICKER_HEIGHT), not
   // measured — Android's picker is a native dialog and renders nothing
@@ -341,6 +358,8 @@ export default function SettingsScreen() {
         ]}
       >
         <Panel style={styles.body} hue={todayHue}>
+          <Label>Notifications</Label>
+
           <View style={styles.row}>
             <View style={styles.rowLabelGroup}>
               {/* A small red "active" dot — one of this screen's signal
@@ -393,6 +412,30 @@ export default function SettingsScreen() {
               </Animated.View>
             </View>
           )}
+
+          {/* Only once signed in, same as before this moved here — a
+              signed-out account has no Friend Activity preference to
+              toggle. */}
+          {isAuthLoaded && user && (
+            <>
+              <Divider />
+              <View style={styles.row}>
+                <BodyText style={styles.rowLabel}>Friend Activity</BodyText>
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={handleToggleNotifications}
+                  disabled={!notificationsLoaded || isSavingNotifications}
+                  trackColor={{ false: colors.border, true: colors.textPrimary }}
+                  thumbColor={colors.background}
+                  ios_backgroundColor={colors.border}
+                />
+              </View>
+              {notificationsPermissionDenied && (
+                <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
+              )}
+              {notificationsError && <BodyText style={styles.error}>{notificationsError}</BodyText>}
+            </>
+          )}
         </Panel>
 
         {isAuthLoaded && (
@@ -410,50 +453,72 @@ export default function SettingsScreen() {
                   </>
                 )}
 
-                <TextField
-                  ref={nameInputRef}
-                  label="Display Name"
-                  value={displayNameInput}
-                  onChangeText={(text) => {
-                    setDisplayNameInput(text);
-                    setNameError(null);
-                  }}
-                  onSubmitEditing={handleSaveName}
-                  placeholder="Player"
-                  maxLength={MAX_DISPLAY_NAME_LENGTH}
-                  autoComplete="name"
-                  textContentType="name"
-                  accessory={
-                    <Animated.View style={saveButtonAnimatedStyle} pointerEvents={isNameDirty ? 'auto' : 'none'}>
-                      <ActionButton label="Save" tone="neutral" onPress={handleSaveName} />
-                    </Animated.View>
-                  }
-                />
-                {nameError && <BodyText style={styles.error}>{nameError}</BodyText>}
-
-                <View style={styles.row}>
-                  <BodyText style={styles.rowLabel}>Friend Activity</BodyText>
-                  <Switch
-                    value={notificationsEnabled}
-                    onValueChange={handleToggleNotifications}
-                    disabled={!notificationsLoaded || isSavingNotifications}
-                    trackColor={{ false: colors.border, true: colors.textPrimary }}
-                    thumbColor={colors.background}
-                    ios_backgroundColor={colors.border}
+                {/* Grouped so this whole block (field, error, Save) is
+                    the one child the Panel's own gap (see accountPanel)
+                    spaces against the next row. Save's own wrapper
+                    always reserves its space (opacity-only fade — see
+                    saveButtonAnimatedStyle), the same as it did before a
+                    brief height-collapse attempt broke it. */}
+                <View>
+                  <TextField
+                    ref={nameInputRef}
+                    label="Display Name"
+                    value={displayNameInput}
+                    onChangeText={(text) => {
+                      setDisplayNameInput(text);
+                      setNameError(null);
+                    }}
+                    onSubmitEditing={handleSaveName}
+                    placeholder="Player"
+                    maxLength={MAX_DISPLAY_NAME_LENGTH}
+                    autoComplete="name"
+                    textContentType="name"
+                    accessory={
+                      <PressableOpacity
+                        style={styles.randomChip}
+                        onPress={handleRandomName}
+                        accessibilityLabel="Random name"
+                      >
+                        <BodyText style={styles.randomChipLabel}>RANDOM</BodyText>
+                      </PressableOpacity>
+                    }
                   />
+                  {nameError && <BodyText style={[styles.error, styles.nameErrorSpacing]}>{nameError}</BodyText>}
+                  {/* Opacity-only fade (see saveButtonAnimatedStyle above)
+                      — always reserves its own space, same as before
+                      the brief height-collapse attempt that broke this. */}
+                  <Animated.View style={[styles.saveRowWrapper, saveButtonAnimatedStyle]}>
+                    <View style={styles.saveRow} pointerEvents={isNameDirty ? 'auto' : 'none'}>
+                      <PressableOpacity
+                        style={[styles.fullWidthButton, styles.saveButton]}
+                        onPress={handleSaveName}
+                      >
+                        <BodyText style={[styles.fullWidthButtonLabel, styles.saveButtonLabel]}>Save</BodyText>
+                      </PressableOpacity>
+                    </View>
+                  </Animated.View>
                 </View>
-                {notificationsPermissionDenied && (
-                  <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
-                )}
-                {notificationsError && <BodyText style={styles.error}>{notificationsError}</BodyText>}
 
-                <View style={styles.authButtonRow}>
-                  <ActionButton label="Sign Out" tone="signal" onPress={() => signOut()} />
-                </View>
+                {/* Divider plus both buttons are direct children of
+                    accountPanel below, so its own gap (spacing.md)
+                    gives equal spacing above/below the divider and
+                    between the two buttons, with no extra style needed
+                    for either. */}
+                <Divider />
 
-                <View style={[styles.authButtonRow, styles.deleteButtonRow]}>
-                  <ActionButton label="Delete Account" tone="signal" filled onPress={handleDeleteAccount} />
-                </View>
+                <PressableOpacity
+                  style={[styles.fullWidthButton, styles.signOutButton]}
+                  onPress={() => signOut()}
+                >
+                  <BodyText style={[styles.fullWidthButtonLabel, styles.signOutLabel]}>Sign Out</BodyText>
+                </PressableOpacity>
+
+                <PressableOpacity
+                  style={[styles.fullWidthButton, styles.deleteButton]}
+                  onPress={handleDeleteAccount}
+                >
+                  <BodyText style={[styles.fullWidthButtonLabel, styles.deleteLabel]}>Delete Account</BodyText>
+                </PressableOpacity>
                 {deleteError && <BodyText style={styles.error}>{deleteError}</BodyText>}
               </>
             ) : (
@@ -601,20 +666,86 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
   },
-  // Keeps Sign Out/Sign In compact and centered, like the other row-level
-  // ActionButtons on this screen, instead of stretching full-width the
-  // way PrimaryButton does.
+  // Keeps the signed-out Sign In button compact and centered, like the
+  // other row-level ActionButtons on this screen, instead of stretching
+  // full-width the way the signed-in Sign Out/Delete buttons below do.
   authButtonRow: {
     alignItems: 'center',
   },
-  // Small separation from Sign Out above — otherwise identical to
-  // authButtonRow.
-  deleteButtonRow: {
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
   error: {
     color: colors.signal,
+  },
+  // Same border width/padding as ActionButton's own `button` style (see
+  // components/ActionButton.tsx) — not a shared import, a deliberate
+  // local copy. borderRadius is a literal 8, not radius.sm/md, per this
+  // chip's own spec.
+  randomChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderColor: colors.textMuted,
+  },
+  randomChipLabel: {
+    ...fonts.primarySemiBold,
+    fontSize: typeScale.label,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: colors.textMuted,
+  },
+  nameErrorSpacing: {
+    marginTop: spacing.sm,
+  },
+  // No longer clipping anything (the height animation that needed this
+  // was reverted — see saveButtonAnimatedStyle), kept only so the
+  // opacity animation has its own View to apply to, separate from
+  // saveRow's static layout below.
+  saveRowWrapper: {},
+  // No longer right-aligning content — Save now fills the row the same
+  // way Sign Out/Delete Account do (see fullWidthButton below), so this
+  // is just the static gap above it (not animated — opacity alone
+  // doesn't need one).
+  saveRow: {
+    marginTop: spacing.sm,
+  },
+  // Sign Out/Delete Account/Save below — full width (via accountPanel's
+  // own default stretch), same height/radius/text treatment as each
+  // other; only border/fill/text color differ (see signOutButton/
+  // deleteButton/saveButton).
+  fullWidthButton: {
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
+  },
+  fullWidthButtonLabel: {
+    ...fonts.primarySemiBold,
+    fontSize: typeScale.label,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  signOutButton: {
+    borderColor: colors.textPrimary,
+  },
+  signOutLabel: {
+    color: colors.textPrimary,
+  },
+  deleteButton: {
+    borderColor: colors.signal,
+  },
+  deleteLabel: {
+    color: colors.signal,
+  },
+  // Filled, light-fill/dark-text — same colors as PrimaryButton (the
+  // Today screen's Submit Round button) and equivalent to what
+  // ActionButton's own tone="neutral" + filled would produce (see the
+  // report for why neither of those components is reused directly).
+  saveButton: {
+    backgroundColor: colors.textPrimary,
+    borderColor: colors.textPrimary,
+  },
+  saveButtonLabel: {
+    color: colors.background,
   },
   // Layout only — the surface fill/border/radius come from Panel.
   howItWorksPanel: {

@@ -15,6 +15,7 @@ import { colors, fonts, spacing, typeScale } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { describeAuthError, isValidEmail } from '../lib/authErrors';
 import { ensureProfile } from '../lib/friends';
+import { randomDisplayName } from '../lib/randomName';
 
 const MIN_PASSWORD_LENGTH = 6;
 const MAX_DISPLAY_NAME_LENGTH = 40;
@@ -82,6 +83,13 @@ export default function SignUpScreen() {
 
     setIsSubmitting(false);
     router.back();
+  }
+
+  // Just fills the field — never submits. Passing the current value in
+  // means pressing it twice in a row always changes something, instead
+  // of occasionally re-landing on the same name.
+  function handleRandomName() {
+    setDisplayName(randomDisplayName(displayName));
   }
 
   // A failed link open (no browser available, malformed URL, etc.) isn't
@@ -163,6 +171,15 @@ export default function SignUpScreen() {
               maxLength={MAX_DISPLAY_NAME_LENGTH}
               autoComplete="name"
               textContentType="name"
+              accessory={
+                <PressableOpacity
+                  style={styles.randomChip}
+                  onPress={handleRandomName}
+                  accessibilityLabel="Random name"
+                >
+                  <BodyText style={styles.randomChipLabel}>RANDOM</BodyText>
+                </PressableOpacity>
+              }
             />
 
             {error && <BodyText style={styles.error}>{error}</BodyText>}
@@ -230,6 +247,24 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  // Same values as app/(tabs)/settings.tsx's own randomChip/
+  // randomChipLabel styles, kept local rather than shared — this screen
+  // has no Save button, just the one chip. borderRadius is a literal 8
+  // per this chip's own spec, not radius.sm/md.
+  randomChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderColor: colors.textMuted,
+  },
+  randomChipLabel: {
+    ...fonts.primarySemiBold,
+    fontSize: typeScale.label,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: colors.textMuted,
   },
   link: {
     ...fonts.primary,
