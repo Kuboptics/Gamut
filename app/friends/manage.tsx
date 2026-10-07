@@ -34,6 +34,7 @@ import {
   type IncomingRequest,
   type OutgoingRequest,
 } from '../../lib/friends';
+import { randomDisplayName } from '../../lib/randomName';
 
 // Friend codes, requests, and connections — everything that manages who
 // you're friends with, tucked behind the icon button on the Friends tab
@@ -59,19 +60,21 @@ export default function ManageFriendsScreen() {
   const [copied, setCopied] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const email = user?.email;
   const refresh = useCallback(() => {
-    const fallbackName = email?.split('@')[0] ?? 'Player';
     setLoadError(false);
 
-    ensureProfile(userId, fallbackName)
+    // Only ever used as the one-time fallback name if this account's
+    // profile row doesn't exist yet (see ensureProfile in lib/friends.ts)
+    // — a fresh random value is safe to pass on every call, since it's
+    // discarded once a profile already exists.
+    ensureProfile(userId, randomDisplayName())
       .then((profile) => setMyCode(profile.friendCode))
       .catch(() => setLoadError(true));
     fetchIncomingRequests(userId).then(setIncoming).catch(() => setLoadError(true));
     fetchOutgoingRequests(userId).then(setOutgoing).catch(() => setLoadError(true));
     fetchFriends(userId).then(setFriends).catch(() => setLoadError(true));
     fetchBlockedUsers(userId).then(setBlocked).catch(() => setLoadError(true));
-  }, [userId, email]);
+  }, [userId]);
 
   useFocusEffect(refresh);
 

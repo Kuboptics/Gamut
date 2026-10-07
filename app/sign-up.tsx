@@ -76,8 +76,7 @@ export default function SignUpScreen() {
     // there'd be no session yet to do this — Settings/Friends fall back to
     // the same default the next time they're opened, signed in.
     if (userId) {
-      const fallbackName = trimmedEmail.split('@')[0];
-      await ensureProfile(userId, displayName.trim() || fallbackName).catch(() => {
+      await ensureProfile(userId, displayName.trim() || randomDisplayName()).catch(() => {
         // Non-fatal: the account still exists; a name can be set later in
         // Settings, or the next Friends-screen visit will pick a default.
       });
