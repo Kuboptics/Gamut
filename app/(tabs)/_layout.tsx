@@ -3,6 +3,7 @@ import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { useTheme } from '../../context/ThemeContext';
 import { CountdownProvider } from '../../lib/CountdownContext';
 
 // Gives every tab item the same press feedback as the rest of the app,
@@ -32,10 +33,16 @@ function TabBarButton({
 }
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
+
   return (
     <ThemeProvider value={DarkTheme}>
       <CountdownProvider>
-        <NativeTabs>
+        {/* tintColor colors the active tab's icon and label. Without it,
+            iOS falls back to its own system blue, which clashes with the
+            monochrome palette. textPrimary flips with the theme (white
+            in dark, near-black in light). */}
+        <NativeTabs tintColor={colors.textPrimary}>
           <NativeTabs.Trigger name="index">
             <Label>Today</Label>
             <Icon sf="camera.fill" />

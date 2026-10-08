@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,11 +49,32 @@ function getMonthGrid(date: Date): (number | null)[][] {
 
 const CHAIN_DAYS = 7;
 
-// A row of small tiles, one per of the last 7 days (today included) —
-// green for a pass, red for a fail/missed day, muted for no data, and a
-// small red outline on today specifically while it's still unplayed.
-// Pulled straight from HistoryContext, so it's never out of sync with
-// the calendar below it.
+// The small day numbers sit in tight ~40pt tiles, so they may grow a
+// little with the iPhone's text-size setting, but not so much that they
+// burst out of the grid.
+const TILE_NUMBER_MAX_FONT_SCALE = 1.2;
+
+// A check for a passed day, a cross for a failed one. The shape (not a
+// red-vs-green color) carries the result, so it reads the same for
+// red-green color-blind players. Colored black or white, whichever
+// contrasts best with that day's fill.
+function OutcomeMark({ record, size }: { record: DayRecord; size: number }) {
+  return (
+    <Ionicons
+      name={record.outcome === 'passed' ? 'checkmark' : 'close'}
+      size={size}
+      color={contrastTextColor(record.hex)}
+    />
+  );
+}
+
+// A row of small tiles, one per of the last 7 days (today included).
+// A played day is filled with that day's own target color, with a
+// check (pass) or cross (fail) inside. A missed day stays an empty
+// outline, and today keeps a small red outline while it's still
+// unplayed. Pulled straight from HistoryContext, so it's never out of
+// sync with the calendar below it. (The row ends on today, so it never
+// contains a future day.)
 function StreakChain({ history }: { history: Record<string, DayRecord> }) {
   const styles = useThemedStyles(makeStyles);
   const today = new Date();
@@ -70,11 +92,12 @@ function StreakChain({ history }: { history: Record<string, DayRecord> }) {
             key={index}
             style={[
               styles.chainTile,
-              record?.outcome === 'passed' && styles.chainTilePass,
-              record?.outcome === 'failed' && styles.chainTileFail,
+              record ? { backgroundColor: record.hex } : null,
               !record && isToday && styles.chainTileLive,
             ]}
-          />
+          >
+            {record && <OutcomeMark record={record} size={16} />}
+          </View>
         );
       })}
     </View>
@@ -97,6 +120,7 @@ export default function ProgressScreen() {
   const year = today.getFullYear();
   const month = today.getMonth();
   const weeks = getMonthGrid(today);
+  const todayDateKey = dateKeyFor(year, month, today.getDate());
   const monthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const swipeHandlers = useTabSwipe(1);
 
@@ -150,13 +174,15 @@ export default function ProgressScreen() {
                   const dateKey = dateKeyFor(year, month, day);
                   const record = history[dateKey];
                   const isTodayLive = isToday && !record;
+                  // Same "YYYY-MM-DD" shape on both sides, so a plain
+                  // string comparison sorts by date.
+                  const isFuture = dateKey > todayDateKey;
                   const numberColor = record ? contrastTextColor(record.hex) : null;
 
                   const tileStyle = [
                     styles.dayTile,
                     record ? { backgroundColor: record.hex } : null,
-                    record?.outcome === 'passed' ? styles.dayTilePass : null,
-                    record?.outcome === 'failed' ? styles.dayTileFail : null,
+                    isFuture ? styles.dayTileFuture : null,
                   ];
 
                   const numberStyle = [
@@ -169,8 +195,15 @@ export default function ProgressScreen() {
 
                   const content = (
                     <>
-                      <BodyText style={numberStyle}>{day}</BodyText>
+                      <BodyText style={numberStyle} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
+                        {day}
+                      </BodyText>
                       {isTodayLive && <View style={styles.todayLiveTick} />}
+                      {record && (
+                        <View style={styles.dayMark}>
+                          <OutcomeMark record={record} size={11} />
+                        </View>
+                      )}
                     </>
                   );
 
@@ -238,20 +271,16 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
+  // The hairline border stays on played tiles too, so a pale day color
+  // still has a visible edge against the light theme's background.
   chainTile: {
     width: 24,
     height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-  },
-  chainTilePass: {
-    backgroundColor: colors.positive,
-    borderColor: colors.positive,
-  },
-  chainTileFail: {
-    backgroundColor: colors.signal,
-    borderColor: colors.signal,
   },
   chainTileLive: {
     borderColor: colors.signal,
@@ -296,15 +325,18 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  // Pass/fail is a restrained ring around the tile, not the fill itself
-  // — the fill is always that day's real color.
-  dayTilePass: {
-    borderColor: colors.positive,
-    borderWidth: 1.5,
+  // Days still to come: the same empty outline as a missed day, but
+  // faded, so "hasn't happened yet" never reads as "missed".
+  dayTileFuture: {
+    opacity: 0.4,
   },
-  dayTileFail: {
-    borderColor: colors.signal,
-    borderWidth: 1.5,
+  // Pass/fail is a small check or cross pinned to the tile's top-right
+  // corner, not the fill itself — the fill is always that day's real
+  // color, and the day number keeps the center.
+  dayMark: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
   },
   dayNumber: {
     fontSize: typeScale.value,
