@@ -142,7 +142,7 @@ export default function ProgressScreen() {
                 {isActive && <View style={styles.liveDot} />}
                 <HeroText style={styles.streakNumber}>{currentStreak}</HeroText>
               </View>
-              <Label>{currentStreak === 1 ? 'Day' : 'Days'} in a row</Label>
+              <Label>Played {currentStreak === 1 ? 'day' : 'days'} in a row</Label>
               <TickRule />
               <StreakChain history={history} />
             </>
