@@ -3,13 +3,14 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Linking, Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ActionButton } from '../../components/ActionButton';
 import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
+import { CollapsibleCard } from '../../components/CollapsibleCard';
 import { Divider } from '../../components/Divider';
 import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
@@ -27,6 +28,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getDailyTarget } from '../../lib/dailyColor';
 import { ensureProfile, updateDisplayName } from '../../lib/friends';
+import { SETTINGS_POINTS_AND_BADGES_BODY } from '../../lib/pointsExplainer';
 import { getExpoPushTokenAsync, requestNotificationPermissionAsync } from '../../lib/notifications';
 import { fetchNotificationPreference, savePushToken, setNotificationsEnabled } from '../../lib/pushTokens';
 import { randomDisplayName } from '../../lib/randomName';
@@ -55,9 +57,11 @@ const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'light', label: 'Light' },
 ];
 
-// The four core rules, in order, plus a fifth "how scoring works" note
-// kept visually separate below by spacing alone. No emojis — plain
-// typographic hierarchy, like an instrument manual.
+// The "How it works" sections, in order. No emojis, just plain
+// typographic hierarchy, like an instrument manual. The Points and Badges
+// text comes from lib/pointsExplainer.ts, so its numbers always match the
+// real rules in lib/cycle.ts.
+const GET_SCORED_TITLE = 'Get Scored';
 const HOW_IT_WORKS = [
   {
     title: 'Daily Color',
@@ -68,12 +72,24 @@ const HOW_IT_WORKS = [
     body: 'Submit three photos, each containing the color.',
   },
   {
-    title: 'Get Scored',
-    body: 'Each photo is scored on how closely it matches the target. The average of all three decides the round.',
+    title: GET_SCORED_TITLE,
+    body:
+      'Each photo is scored on how closely it matches the target. The average of all three decides the round. ' +
+      'Your average also decides your points for the day.',
+  },
+  {
+    title: 'Points and Badges',
+    body: SETTINGS_POINTS_AND_BADGES_BODY,
   },
   {
     title: 'Build a Streak',
-    body: 'Playing any day — pass or fail — grows your streak. Miss a day and it resets.',
+    body: 'Playing any day, pass or fail, grows your streak. Miss a day and it resets.',
+  },
+  {
+    title: 'How Scoring Works',
+    body:
+      'Each photo is analyzed in Lab color space, the space human vision is modeled on, and compared to the ' +
+      'target color region by region. The best-matching area sets your score.',
   },
 ];
 
@@ -291,25 +307,10 @@ export default function SettingsScreen() {
     setTime(date.getHours(), date.getMinutes());
   }
 
-  // The Save row is always mounted below the field — only its opacity
-  // animates. It was briefly also height/marginTop-animated against a
-  // measured "natural height", but that measurement was circular (taken
-  // from inside the very View whose height the animation was also
-  // driving) and stayed stuck near 0, which is why Save stopped
-  // appearing — reverted to the known-working opacity-only fade until a
-  // real height can be added without guessing (see PART A note below).
+  // Used by the Save button's fade below and the reminder picker's
+  // open/close animation: both skip their animation when Reduce Motion
+  // is on.
   const reducedMotion = useReducedMotion();
-  const saveButtonOpacity = useSharedValue(0);
-  useEffect(() => {
-    const target = isNameDirty ? 1 : 0;
-    saveButtonOpacity.value = reducedMotion
-      ? target
-      : withTiming(target, { duration: motionDuration.base, easing: motionEasing });
-  }, [isNameDirty, reducedMotion, saveButtonOpacity]);
-
-  const saveButtonAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: saveButtonOpacity.value,
-  }));
 
   // The expanded height is a known fixed value (IOS_PICKER_HEIGHT), not
   // measured — Android's picker is a native dialog and renders nothing
@@ -475,115 +476,120 @@ export default function SettingsScreen() {
         </Panel>
 
         {isAuthLoaded && (
-          <Panel style={styles.accountPanel} hue={todayHue}>
-            <Label>Account</Label>
+          <CollapsibleCard
+            title="Account settings"
+            // The name draft lives in this screen's state, not in the
+            // card, so closing the card never loses an unsaved edit. The
+            // keyboard is dismissed so it doesn't stay up over a closed card.
+            onOpenChange={(open) => {
+              if (!open) Keyboard.dismiss();
+            }}
+          >
+            {/* Keeps the card's original 12pt spacing between its rows. */}
+            <View style={styles.accountContent}>
+              {user ? (
+                <>
+                  <BodyText style={styles.rowLabel}>{user.email}</BodyText>
 
-            {user ? (
-              <>
-                <BodyText style={styles.rowLabel}>{user.email}</BodyText>
+                  {profileLoadError && (
+                    <>
+                      <BodyText style={styles.error}>{"Couldn't load your profile."}</BodyText>
+                      <PrimaryButton label="Try Again" onPress={refreshProfile} />
+                    </>
+                  )}
 
-                {profileLoadError && (
-                  <>
-                    <BodyText style={styles.error}>{"Couldn't load your profile."}</BodyText>
-                    <PrimaryButton label="Try Again" onPress={refreshProfile} />
-                  </>
-                )}
-
-                {/* Grouped so this whole block (field, error, Save) is
-                    the one child the Panel's own gap (see accountPanel)
-                    spaces against the next row. Save's own wrapper
-                    always reserves its space (opacity-only fade — see
-                    saveButtonAnimatedStyle), the same as it did before a
-                    brief height-collapse attempt broke it. */}
-                <View>
-                  <TextField
-                    ref={nameInputRef}
-                    label="Display Name"
-                    value={displayNameInput}
-                    onChangeText={(text) => {
-                      setDisplayNameInput(text);
-                      setNameError(null);
-                    }}
-                    onSubmitEditing={handleSaveName}
-                    placeholder="Player"
-                    maxLength={MAX_DISPLAY_NAME_LENGTH}
-                    autoComplete="name"
-                    textContentType="name"
-                    accessory={
-                      <PressableOpacity
-                        style={styles.randomChip}
-                        onPress={handleRandomName}
-                        accessibilityLabel="Random name"
+                  {/* Grouped so this whole block (field, error, Save) is
+                      the one child the card's own gap (see accountContent)
+                      spaces against the next row. */}
+                  <View>
+                    <TextField
+                      ref={nameInputRef}
+                      label="Display Name"
+                      value={displayNameInput}
+                      onChangeText={(text) => {
+                        setDisplayNameInput(text);
+                        setNameError(null);
+                      }}
+                      onSubmitEditing={handleSaveName}
+                      placeholder="Player"
+                      maxLength={MAX_DISPLAY_NAME_LENGTH}
+                      autoComplete="name"
+                      textContentType="name"
+                      accessory={
+                        <PressableOpacity
+                          style={styles.randomChip}
+                          onPress={handleRandomName}
+                          accessibilityLabel="Random name"
+                        >
+                          <BodyText style={styles.randomChipLabel}>RANDOM</BodyText>
+                        </PressableOpacity>
+                      }
+                    />
+                    {nameError && <BodyText style={[styles.error, styles.nameErrorSpacing]}>{nameError}</BodyText>}
+                    {/* Only there while the name has an unsaved change, so
+                        it reserves no space when hidden; the rows below move
+                        down when it appears. It fades in and out with the
+                        app's usual timing, or appears instantly when Reduce
+                        Motion is on. */}
+                    {isNameDirty && (
+                      <Animated.View
+                        style={styles.saveRow}
+                        entering={reducedMotion ? undefined : FadeIn.duration(motionDuration.base).easing(motionEasing)}
+                        exiting={reducedMotion ? undefined : FadeOut.duration(motionDuration.base).easing(motionEasing)}
                       >
-                        <BodyText style={styles.randomChipLabel}>RANDOM</BodyText>
-                      </PressableOpacity>
-                    }
-                  />
-                  {nameError && <BodyText style={[styles.error, styles.nameErrorSpacing]}>{nameError}</BodyText>}
-                  {/* Opacity-only fade (see saveButtonAnimatedStyle above)
-                      — always reserves its own space, same as before
-                      the brief height-collapse attempt that broke this. */}
-                  <Animated.View style={[styles.saveRowWrapper, saveButtonAnimatedStyle]}>
-                    <View style={styles.saveRow} pointerEvents={isNameDirty ? 'auto' : 'none'}>
-                      <PressableOpacity
-                        style={[styles.fullWidthButton, styles.saveButton]}
-                        onPress={handleSaveName}
-                      >
-                        <BodyText style={[styles.fullWidthButtonLabel, styles.saveButtonLabel]}>Save</BodyText>
-                      </PressableOpacity>
-                    </View>
-                  </Animated.View>
-                </View>
+                        <PressableOpacity
+                          style={[styles.fullWidthButton, styles.saveButton]}
+                          onPress={handleSaveName}
+                        >
+                          <BodyText style={[styles.fullWidthButtonLabel, styles.saveButtonLabel]}>Save</BodyText>
+                        </PressableOpacity>
+                      </Animated.View>
+                    )}
+                  </View>
 
-                {/* Divider plus both buttons are direct children of
-                    accountPanel below, so its own gap (spacing.md)
-                    gives equal spacing above/below the divider and
-                    between the two buttons, with no extra style needed
-                    for either. */}
-                <Divider />
+                  {/* Divider plus both buttons are direct children of
+                      accountContent, so its own gap (spacing.md)
+                      gives equal spacing above/below the divider and
+                      between the two buttons, with no extra style needed
+                      for either. */}
+                  <Divider />
 
-                <PressableOpacity
-                  style={[styles.fullWidthButton, styles.signOutButton]}
-                  onPress={() => signOut()}
-                >
-                  <BodyText style={[styles.fullWidthButtonLabel, styles.signOutLabel]}>Sign Out</BodyText>
-                </PressableOpacity>
+                  <PressableOpacity
+                    style={[styles.fullWidthButton, styles.signOutButton]}
+                    onPress={() => signOut()}
+                  >
+                    <BodyText style={[styles.fullWidthButtonLabel, styles.signOutLabel]}>Sign Out</BodyText>
+                  </PressableOpacity>
 
-                <PressableOpacity
-                  style={[styles.fullWidthButton, styles.deleteButton]}
-                  onPress={handleDeleteAccount}
-                >
-                  <BodyText style={[styles.fullWidthButtonLabel, styles.deleteLabel]}>Delete Account</BodyText>
-                </PressableOpacity>
-                {deleteError && <BodyText style={styles.error}>{deleteError}</BodyText>}
-              </>
-            ) : (
-              <>
-                <BodyText style={styles.note}>
-                  Sign in to get ready for friends and leaderboards — the game itself never requires it.
-                </BodyText>
-                <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
-                <View style={styles.authButtonRow}>
-                  <ActionButton label="Sign In" tone="neutral" onPress={() => router.push('/sign-in')} />
-                </View>
-              </>
-            )}
-          </Panel>
+                  <PressableOpacity
+                    style={[styles.fullWidthButton, styles.deleteButton]}
+                    onPress={handleDeleteAccount}
+                  >
+                    <BodyText style={[styles.fullWidthButtonLabel, styles.deleteLabel]}>Delete Account</BodyText>
+                  </PressableOpacity>
+                  {deleteError && <BodyText style={styles.error}>{deleteError}</BodyText>}
+                </>
+              ) : (
+                <>
+                  <BodyText style={styles.note}>
+                    Sign in to get ready for friends and leaderboards — the game itself never requires it.
+                  </BodyText>
+                  <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
+                  <View style={styles.authButtonRow}>
+                    <ActionButton label="Sign In" tone="neutral" onPress={() => router.push('/sign-in')} />
+                  </View>
+                </>
+              )}
+            </View>
+          </CollapsibleCard>
         )}
 
-        <Panel style={styles.howItWorksPanel} hue={todayHue}>
-          <View style={styles.howItWorksHeader}>
-            <Label>How It Works</Label>
-            <PressableOpacity onPress={() => setShowIntro(true)}>
-              <BodyText style={styles.link}>View Intro Again</BodyText>
-            </PressableOpacity>
-          </View>
-
+        <CollapsibleCard title="How it works">
           {HOW_IT_WORKS.map((section) => (
             <View key={section.title} style={styles.sectionRow}>
               <BodyText style={styles.sectionTitle}>{section.title}</BodyText>
               <BodyText style={styles.sectionBody}>{section.body}</BodyText>
-              {section.title === 'Get Scored' && (
+              {section.title === GET_SCORED_TITLE && (
                 <View style={styles.scoreLegendRow}>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, styles.legendDotPass]} />
@@ -598,14 +604,11 @@ export default function SettingsScreen() {
             </View>
           ))}
 
-          <View style={styles.sectionRow}>
-            <BodyText style={styles.sectionTitle}>How Scoring Works</BodyText>
-            <BodyText style={styles.sectionBody}>
-              Each photo is analyzed in Lab color space — the space human vision is modeled on — and compared to
-              the target color region by region. The best-matching area sets your score.
-            </BodyText>
-          </View>
-        </Panel>
+          {/* The last item in the open card: replays the first-launch intro. */}
+          <PressableOpacity style={styles.viewIntroLink} onPress={() => setShowIntro(true)}>
+            <BodyText style={styles.link}>View Intro Again</BodyText>
+          </PressableOpacity>
+        </CollapsibleCard>
 
         <View style={styles.footer}>
           <PressableOpacity onPress={handleOpenPrivacyPolicy}>
@@ -726,12 +729,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   appearanceOptionLabelSelected: {
     color: colors.background,
   },
-  // Layout only — the surface fill/border/radius come from Panel.
-  accountPanel: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
+  // The rows inside "Account settings", with the same 12pt spacing the
+  // Account card used before it became collapsible.
+  accountContent: {
     gap: spacing.md,
   },
   link: {
@@ -769,19 +769,12 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   nameErrorSpacing: {
     marginTop: spacing.sm,
   },
-  // No longer clipping anything (the height animation that needed this
-  // was reverted — see saveButtonAnimatedStyle), kept only so the
-  // opacity animation has its own View to apply to, separate from
-  // saveRow's static layout below.
-  saveRowWrapper: {},
-  // No longer right-aligning content — Save now fills the row the same
-  // way Sign Out/Delete Account do (see fullWidthButton below), so this
-  // is just the static gap above it (not animated — opacity alone
-  // doesn't need one).
+  // The small gap between the name field and the Save button, which only
+  // exists while Save is shown.
   saveRow: {
     marginTop: spacing.sm,
   },
-  // Sign Out/Delete Account/Save below — full width (via accountPanel's
+  // Sign Out/Delete Account/Save below: full width (via accountContent's
   // own default stretch), same height/radius/text treatment as each
   // other; only border/fill/text color differ (see signOutButton/
   // deleteButton/saveButton).
@@ -820,18 +813,10 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   saveButtonLabel: {
     color: colors.background,
   },
-  // Layout only — the surface fill/border/radius come from Panel.
-  howItWorksPanel: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
-    gap: spacing.lg,
-  },
-  howItWorksHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  // "View Intro Again" at the bottom of the open card, on the left like
+  // the text above it.
+  viewIntroLink: {
+    alignSelf: 'flex-start',
   },
   sectionRow: {
     gap: spacing.xs,
