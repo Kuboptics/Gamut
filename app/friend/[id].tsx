@@ -21,7 +21,7 @@ import { motionDuration, motionEasing } from '../../constants/motion';
 import { fonts, radius, spacing, typeScale, type ThemeColors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { PASS_THRESHOLD } from '../../context/RoundContext';
-import { useTheme, useThemedStyles, type ColorScheme } from '../../context/ThemeContext';
+import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { blockUser, removeFriend } from '../../lib/friends';
 import { fetchFriendHistory, type FriendDay, type FriendHistory } from '../../lib/friendProfile';
 
@@ -61,17 +61,15 @@ function formatMonthDayLabel(dateKey: string): string {
 // list, so the four cutoffs can't drift out of sync between the badge
 // and the key.
 //
-// darkColor/lightColor: these render as actual text/icon color (see
-// tierColor below), so each needs its own per-mode value, not just one
-// hex reused — the original (now darkColor) values are all under 2.3:1
-// against a light surface, nowhere near readable as text there.
-// lightColor keeps the same hue, darkened until it clears 4.5:1 against
-// both lightColors.background and lightColors.surface.
+// colorToken: which theme color each tier uses (colors.tierDiamond and
+// so on in constants/theme.ts). The theme holds a separate dark and
+// light value for each, because these render as text/icon color, and
+// the Progress tab's badge ladder uses the same tokens so the two can't
+// drift apart.
 type MedalTier = {
   label: string;
   interval: string;
-  darkColor: string;
-  lightColor: string;
+  colorToken: 'tierDiamond' | 'tierGold' | 'tierSilver' | 'tierBronze';
   icon: 'diamond' | 'medal';
   min: number;
 };
@@ -79,18 +77,18 @@ type MedalTier = {
 // Ordered highest cutoff first — medalForAverage below relies on that
 // order to find the first (i.e. highest) tier an average qualifies for.
 const MEDAL_TIERS: MedalTier[] = [
-  { label: 'Diamond', interval: '70% and above', darkColor: '#5CD5E0', lightColor: '#197B84', icon: 'diamond', min: 70 },
-  { label: 'Gold', interval: '60–69%', darkColor: '#E0A24E', lightColor: '#9A641B', icon: 'medal', min: 60 },
-  { label: 'Silver', interval: '50–59%', darkColor: '#B8BEC6', lightColor: '#66707E', icon: 'medal', min: 50 },
-  { label: 'Bronze', interval: 'Below 50%', darkColor: '#C77B4A', lightColor: '#A35E32', icon: 'medal', min: 0 },
+  { label: 'Diamond', interval: '70% and above', colorToken: 'tierDiamond', icon: 'diamond', min: 70 },
+  { label: 'Gold', interval: '60–69%', colorToken: 'tierGold', icon: 'medal', min: 60 },
+  { label: 'Silver', interval: '50–59%', colorToken: 'tierSilver', icon: 'medal', min: 50 },
+  { label: 'Bronze', interval: 'Below 50%', colorToken: 'tierBronze', icon: 'medal', min: 0 },
 ];
 
 function medalForAverage(average: number): MedalTier {
   return MEDAL_TIERS.find((tier) => average >= tier.min) ?? MEDAL_TIERS[MEDAL_TIERS.length - 1];
 }
 
-function tierColor(tier: MedalTier, scheme: ColorScheme): string {
-  return scheme === 'dark' ? tier.darkColor : tier.lightColor;
+function tierColor(tier: MedalTier, colors: ThemeColors): string {
+  return colors[tier.colorToken];
 }
 
 // Renders the right glyph for a tier — DiamondIcon/MedalIcon are local
@@ -307,12 +305,12 @@ function SummaryCard({ history, isOwnProfile }: { history: FriendHistory; isOwnP
   // modal's open/closed-ness has no bearing on anything outside this
   // component.
   const [tierModalVisible, setTierModalVisible] = useState(false);
-  const { colors, scheme } = useTheme();
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   if (!history.best || history.average === null) return null;
   const tier = medalForAverage(history.average);
-  const resolvedTierColor = tierColor(tier, scheme);
+  const resolvedTierColor = tierColor(tier, colors);
 
   return (
     <Panel style={styles.summaryCard}>
@@ -421,7 +419,7 @@ function TierKeyModal({ visible, onClose, currentTier, isOwnProfile }: TierKeyMo
             const isCurrent = isOwnProfile && tier.label === currentTier.label;
             return (
               <View key={tier.label} style={[styles.tierRow, isCurrent && styles.tierRowCurrent]}>
-                <TierIcon icon={tier.icon} size={22} color={tierColor(tier, scheme)} />
+                <TierIcon icon={tier.icon} size={22} color={tierColor(tier, colors)} />
                 <View style={styles.tierRowText}>
                   <BodyText style={styles.tierRowLabel}>{tier.label}</BodyText>
                   <Label>{tier.interval}</Label>

@@ -40,6 +40,15 @@ export const darkColors = {
   medalGold: '#B3944F',
   medalSilver: '#9CA3AA',
   medalBronze: '#8C6A4E',
+  // The four badge tiers (Diamond, Gold, Silver, Bronze): the all-time
+  // gem on the friend profile and the colored dots in the Progress tab's
+  // "How points work" ladder. A separate, brighter set from the medal*
+  // rank colors above. These are used as text/icon colors, so light mode
+  // below has its own darker values that clear 4.5:1 on light surfaces.
+  tierDiamond: '#5CD5E0',
+  tierGold: '#E0A24E',
+  tierSilver: '#B8BEC6',
+  tierBronze: '#C77B4A',
   // Another narrow, deliberate exception: a muted blue reserved for
   // genuine hyperlinks out of the app (currently just Settings' Privacy
   // Policy row), so a tappable web link still reads with its familiar
@@ -70,6 +79,12 @@ export const lightColors: ThemeColors = {
   medalGold: '#B3944F',
   medalSilver: '#9CA3AA',
   medalBronze: '#8C6A4E',
+  // Same hues as the dark tier colors, darkened until each clears 4.5:1
+  // against both light surfaces.
+  tierDiamond: '#197B84',
+  tierGold: '#9A641B',
+  tierSilver: '#66707E',
+  tierBronze: '#A35E32',
   link: '#1A6FC4',
 };
 
