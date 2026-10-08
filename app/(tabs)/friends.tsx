@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -9,6 +9,7 @@ import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
 import { FlameIcon } from '../../components/FlameIcon';
 import { FriendThumbnails } from '../../components/FriendThumbnails';
+import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
@@ -18,9 +19,114 @@ import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors 
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
+import { CYCLE_DAYS, cycleInfo } from '../../lib/cycle';
 import { getDailyTarget } from '../../lib/dailyColor';
 import { blockUser, fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
+import { todayKey } from '../../lib/streak';
+
+// The points and streak numbers sit in a narrow right-hand column, so
+// they may grow a little with the iPhone's text-size setting, but not
+// enough to squeeze the name off the row.
+const ROW_NUMBER_MAX_FONT_SCALE = 1.2;
+
+// 2840 -> "2,840". Done by hand rather than with toLocaleString so the
+// result never depends on the phone's language or on the JS engine's
+// built-in number formatting.
+function formatPoints(points: number): string {
+  return String(points).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// "29 days left", "1 day left", or "0 days left" — shared by the visible
+// header and its VoiceOver label.
+function daysLeftText(daysLeft: number): string {
+  return `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`;
+}
+
+// The add-friend button's tap area and the icon drawn inside it.
+const MANAGE_BUTTON_SIZE = 32;
+const MANAGE_ICON_SIZE = 20;
+
+// The cycle's 30 days are shown as 2 rows of this many circles.
+const CYCLE_CIRCLES_PER_ROW = 15;
+
+// The daily target color for each day of the cycle, in order — or null
+// for a day that hasn't come yet. Future days are never looked up, so the
+// screen can't reveal an upcoming color.
+//
+// Day arithmetic is done in UTC (like lib/cycle.ts) so daylight saving
+// can't skip or repeat a day. getDailyTarget, though, reads a Date's
+// *local* year/month/day, so each day is handed to it as a local Date with
+// those same three numbers. Noon rather than midnight, because in a few
+// time zones a daylight-saving change happens at midnight and that local
+// midnight doesn't exist.
+function cycleDayColors(startKey: string, dayInCycle: number): (string | null)[] {
+  const [year, month, day] = startKey.split('-').map(Number);
+  return Array.from({ length: CYCLE_DAYS }, (_, index) => {
+    if (index >= dayInCycle) return null;
+    const utcDate = new Date(Date.UTC(year, month - 1, day + index));
+    const localNoon = new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate(), 12);
+    return getDailyTarget(localNoon).hex;
+  });
+}
+
+// The screen's headline, above the leaderboard card: "Cycle N" large,
+// with the days left just below it. Read by VoiceOver as one header.
+function CycleTitle() {
+  const styles = useThemedStyles(makeStyles);
+  const { cycleNumber, dayInCycle, daysLeft } = cycleInfo(todayKey());
+
+  return (
+    <View
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={`Cycle ${cycleNumber}, day ${dayInCycle} of ${CYCLE_DAYS}, ${daysLeftText(daysLeft)}`}
+    >
+      <HeroText style={styles.cycleTitle} maxFontSizeMultiplier={ROW_NUMBER_MAX_FONT_SCALE}>
+        Cycle {cycleNumber}
+      </HeroText>
+      <BodyText style={styles.cycleDaysLeft} maxFontSizeMultiplier={ROW_NUMBER_MAX_FONT_SCALE}>
+        {daysLeft === 0 ? 'Last day' : daysLeftText(daysLeft)}
+      </BodyText>
+    </View>
+  );
+}
+
+// The top of the leaderboard card: one circle per day of the cycle,
+// 2 rows of 15. Days so far (today included) are filled with that day's
+// target color — even days you missed, since this is the cycle's clock,
+// not your own record. Today also gets a ring; days still to come are
+// empty outlines. Recomputed on every render, so it rolls over at local
+// midnight the next time the screen updates. Hidden from VoiceOver —
+// CycleTitle above already says where in the cycle we are.
+function CycleCircles() {
+  const styles = useThemedStyles(makeStyles);
+  const { dayInCycle, startKey } = cycleInfo(todayKey());
+  // All 30 colors worked out once here (a table lookup each), not in
+  // every circle.
+  const dayColors = cycleDayColors(startKey, dayInCycle);
+  const circleRows = [dayColors.slice(0, CYCLE_CIRCLES_PER_ROW), dayColors.slice(CYCLE_CIRCLES_PER_ROW)];
+
+  return (
+    <View style={styles.cycleCircles} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {circleRows.map((rowColors, rowIndex) => (
+        <View key={rowIndex} style={styles.cycleCircleRow}>
+          {rowColors.map((color, columnIndex) => {
+            const index = rowIndex * CYCLE_CIRCLES_PER_ROW + columnIndex;
+            // The cell decides the size and position; the circle and
+            // today's ring are drawn inside it and can't change it.
+            return (
+              <View key={index} style={styles.cycleCell}>
+                <View style={[styles.cycleCircle, color ? { backgroundColor: color } : null]} />
+                {index === dayInCycle - 1 && <View style={styles.cycleTodayRing} />}
+              </View>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // The friends leaderboard — the payoff screen, front and center. Friend
 // management (code, requests, add-a-friend) lives behind the icon button
@@ -188,8 +294,12 @@ export default function FriendsScreen() {
       <AppHeader />
       {userId && (
         <View style={styles.manageRow}>
+          {/* Always present (even when empty) so it keeps the icon button
+              pushed to the right edge; the title itself shows only when
+              the leaderboard card does. */}
+          <View style={styles.titleSlot}>{leaderboard.length > 0 && <CycleTitle />}</View>
           <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
-            <Ionicons name="person-add-outline" size={20} color={colors.textMuted} />
+            <Ionicons name="person-add-outline" size={MANAGE_ICON_SIZE} color={colors.textMuted} />
             {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
           </PressableOpacity>
         </View>
@@ -240,6 +350,7 @@ export default function FriendsScreen() {
 
           {leaderboard.length > 0 && (
             <Panel style={styles.panel} hue={todayHue}>
+              <CycleCircles />
               {leaderboard.map((entry, index) => {
                 const isYou = entry.userId === userId;
                 // Only friends (not yourself) can be removed, and only if
@@ -368,10 +479,19 @@ function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onOpenProfile, onRemo
         <PressableOpacity onPress={onOpenProfile} onLongPress={onRemove}>
           <View style={styles.nameRow}>
             <BodyText style={styles.name}>{name}</BodyText>
+            {entry.hasCrown && (
+              <MaterialCommunityIcons
+                name="crown"
+                size={14}
+                color={colors.medalGold}
+                accessible
+                accessibilityLabel="Winner of the last cycle"
+              />
+            )}
             <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+            <TodayStatus entry={entry} />
           </View>
         </PressableOpacity>
-        <TodayStatus entry={entry} />
         {entry.playedToday && (
           <FriendThumbnails
             urls={entry.thumbnailUrls}
@@ -380,9 +500,22 @@ function LeaderboardRow({ entry, rank, isYou, onOpenPhoto, onOpenProfile, onRemo
           />
         )}
       </View>
-      <View style={styles.streakGroup}>
-        <BodyText style={styles.streakValue}>{entry.streak}</BodyText>
-        <FlameIcon size={16} />
+      {/* Cycle points as the big number, with the streak small below it.
+          Read out as one phrase by VoiceOver, so the numbers have context. */}
+      <View
+        style={styles.scoreColumn}
+        accessible
+        accessibilityLabel={`${formatPoints(entry.cyclePoints)} points, ${entry.streak} day streak`}
+      >
+        <BodyText style={styles.pointsValue} maxFontSizeMultiplier={ROW_NUMBER_MAX_FONT_SCALE}>
+          {formatPoints(entry.cyclePoints)}
+        </BodyText>
+        <View style={styles.streakGroup}>
+          <FlameIcon size={12} dimmed={entry.streak === 0} />
+          <BodyText style={styles.streakValue} maxFontSizeMultiplier={ROW_NUMBER_MAX_FONT_SCALE}>
+            {entry.streak}
+          </BodyText>
+        </View>
       </View>
     </View>
   );
@@ -393,18 +526,44 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  // Just the manage-friends affordance now that the screen title is gone
-  // (the shared header above the tabs covers that) — right-aligned, its
-  // own small row rather than a full header bar.
+  // The cycle title on the left, the add-friend button on the right.
+  // Same side padding as AppHeader's top bar (spacing.xl), so "Cycle N"
+  // starts exactly where the Gamut wordmark does (the button's own
+  // negative margin, below, lines its icon up on the right). flex-start
+  // keeps the button at the top of the row, level with the title's top,
+  // even though the two-line title makes the row taller.
   manageRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
   },
+  // Takes all the space left of the button (and shrinks for it), so a
+  // long title can never run under the button.
+  titleSlot: {
+    flex: 1,
+  },
+  // Line 1 — the same size and bold system face as the Result screen's
+  // "Round Result" title (HeroText, typeScale.specimen).
+  cycleTitle: {
+    fontSize: typeScale.specimen,
+    letterSpacing: -0.5,
+  },
+  // Line 2 — smaller, in the muted text color, so "Cycle N" leads.
+  cycleDaysLeft: {
+    fontSize: typeScale.button,
+    color: colors.textMuted,
+  },
+  // The tap area stays 32x32. The 20pt icon sits centered in it, so its
+  // visible right edge is (32 - 20) / 2 = 6pt in from the button's edge;
+  // the negative right margin moves the whole button 6pt right, so the
+  // icon itself (not its invisible tap area) lines up with the right edge
+  // of AppHeader's "Next drop" countdown above.
   manageButton: {
-    width: 32,
-    height: 32,
+    width: MANAGE_BUTTON_SIZE,
+    height: MANAGE_BUTTON_SIZE,
+    marginRight: -(MANAGE_BUTTON_SIZE - MANAGE_ICON_SIZE) / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -442,6 +601,40 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   error: {
     color: colors.signal,
   },
+  // 2 rows of 15 circles, 4pt apart both across and down.
+  cycleCircles: {
+    gap: spacing.xs,
+  },
+  cycleCircleRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  // One square cell per day: an equal share of the row, kept square by
+  // aspectRatio. It has NO border, padding or margin on purpose — the
+  // layout engine counts an item's own border and padding into its
+  // starting width, so anything like that here could make one cell wider
+  // than the rest. Everything visible is drawn inside it instead.
+  cycleCell: {
+    flex: 1,
+    aspectRatio: 1,
+  },
+  // The circle itself, filling its cell exactly (absoluteFill), so it can
+  // never change the cell's size. The thin muted edge keeps a pale color
+  // visible in light mode and a dark one visible in dark mode; on a
+  // future day it's the whole (empty) circle.
+  cycleCircle: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.textMuted,
+  },
+  // Today's ring, drawn the same way on top of the circle.
+  cycleTodayRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: colors.textPrimary,
+  },
   // One shape for every row, rank 1 included — same paddingHorizontal and
   // the same borderWidth/borderRadius, so nothing shifts horizontally
   // between rows. Non-highlighted rows get a transparent border (so the
@@ -453,7 +646,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -511,17 +704,21 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   identity: {
     flex: 1,
   },
-  // Lays out a friend's name + the small tappable-hint chevron on one
-  // line — same shape as statusRow below, just for the name instead of
-  // the score/pass-fail row.
+  // Name, crown, chevron and today's status on one line. flexWrap lets the
+  // status drop to a second line only when the line is too narrow for it
+  // (a long name on a small phone); on a normal width it stays on one line.
   nameRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.xs,
   },
+  // flexShrink lets a long name wrap onto a second line instead of
+  // pushing the crown and chevron out of the row on a narrow phone.
   name: {
     ...fonts.primarySemiBold,
     fontSize: typeScale.button,
+    flexShrink: 1,
   },
   thumbnails: {
     marginTop: spacing.sm,
@@ -531,15 +728,28 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
+  // The right-hand column: points on top, streak below, both
+  // right-aligned. Never shrinks, so the numbers are never cut off — the
+  // name column gives way instead.
+  scoreColumn: {
+    alignItems: 'flex-end',
+    gap: 2,
+    flexShrink: 0,
+  },
+  // The same style the old big streak number used.
+  pointsValue: {
+    ...fonts.primarySemiBold,
+    fontSize: typeScale.button,
+    fontVariant: ['tabular-nums'],
+  },
   streakGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 0,
+    gap: spacing.xs,
   },
   streakValue: {
-    ...fonts.primarySemiBold,
-    fontSize: typeScale.button,
+    fontSize: 13,
+    color: colors.textMuted,
     fontVariant: ['tabular-nums'],
   },
 });

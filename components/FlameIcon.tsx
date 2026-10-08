@@ -14,6 +14,10 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type FlameIconProps = {
   size: number;
+  // A quiet, "out" flame: muted grey and perfectly still. Used where a
+  // streak is 0, so an empty streak doesn't look like a live one.
+  // Defaults to false, so existing callers are unchanged.
+  dimmed?: boolean;
 };
 
 // The Progress tab's icon — a small warm flame, the universal streak
@@ -27,14 +31,16 @@ type FlameIconProps = {
 // reads as a soft, organic candle flicker instead of a mechanical,
 // perfectly-synced pulse. Both use withRepeat + a sine ease, never a
 // spring, so there's no bounce.
-export function FlameIcon({ size }: FlameIconProps) {
+export function FlameIcon({ size, dimmed = false }: FlameIconProps) {
   const { colors } = useTheme();
   const reducedMotion = useReducedMotion();
   const scaleFlicker = useSharedValue(0.5);
   const opacityFlicker = useSharedValue(0.5);
 
   useEffect(() => {
-    if (reducedMotion) {
+    // A dimmed flame never flickers either. If `dimmed` turns on while
+    // the flicker is running, this effect's cleanup below stops it first.
+    if (reducedMotion || dimmed) {
       // Hold both at their resting midpoint — a static, normal-looking
       // flame rather than freezing mid-dim or mid-bright.
       scaleFlicker.value = 0.5;
@@ -49,7 +55,7 @@ export function FlameIcon({ size }: FlameIconProps) {
       cancelAnimation(scaleFlicker);
       cancelAnimation(opacityFlicker);
     };
-  }, [reducedMotion, scaleFlicker, opacityFlicker]);
+  }, [reducedMotion, dimmed, scaleFlicker, opacityFlicker]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 0.94 + scaleFlicker.value * 0.1 }],
@@ -58,7 +64,7 @@ export function FlameIcon({ size }: FlameIconProps) {
 
   return (
     <Animated.View style={animatedStyle}>
-      <Ionicons name="flame" size={size} color={colors.flame} />
+      <Ionicons name="flame" size={size} color={dimmed ? colors.textMuted : colors.flame} />
     </Animated.View>
   );
 }
