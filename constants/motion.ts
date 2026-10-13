@@ -16,6 +16,10 @@ export const motionDuration = {
   // `base` itself, so the Stack transition, button-release spring, and
   // staggered reveal all keep their existing feel.
   tabSwitch: 176,
+  // The one-time cold-launch fade, splash -> app (see app/_layout.tsx).
+  // Slower than `base` because it's a whole-screen dissolve, not a
+  // response to a tap.
+  launchFade: 350,
 };
 
 // The gap between each beat of a staggered reveal (see app/summary.tsx).
