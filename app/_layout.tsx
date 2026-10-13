@@ -7,7 +7,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { IntroModal } from '../components/IntroModal';
-import { LaunchAnimation } from '../components/LaunchAnimation';
 import { PushNotificationSetup } from '../components/PushNotificationSetup';
 import { motionDuration } from '../constants/motion';
 import { AuthProvider } from '../context/AuthContext';
@@ -45,10 +44,6 @@ function RootLayoutContent() {
   });
   const reducedMotion = useReducedMotion();
   const { colors, scheme, isThemeLoaded } = useTheme();
-
-  // Gates the IntroModal and covers the screen until the launch
-  // animation's fade-out finishes — see components/LaunchAnimation.tsx.
-  const [launchAnimationDone, setLaunchAnimationDone] = useState(false);
 
   // Shown once, the very first time the app is ever opened on this
   // device — see components/IntroModal.tsx and lib/introStorage.ts.
@@ -98,14 +93,8 @@ function RootLayoutContent() {
                       }}
                     />
                   </NavigationThemeProvider>
-                  <IntroModal
-                    visible={showIntro && launchAnimationDone}
-                    onClose={() => setShowIntro(false)}
-                  />
+                  <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
                   <PushNotificationSetup />
-                  {!launchAnimationDone && (
-                    <LaunchAnimation onDone={() => setLaunchAnimationDone(true)} />
-                  )}
                 </SyncProvider>
               </ReminderProvider>
             </StreakProvider>

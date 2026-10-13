@@ -22,7 +22,6 @@ import { PASS_THRESHOLD, PHOTOS_PER_ROUND, useRound, type RoundSlots } from '../
 import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { wcagContrastTextColor } from '../../lib/color';
-import { getColorFact } from '../../lib/colorFacts';
 import { nameColor } from '../../lib/colorName';
 import { getDailyTarget } from '../../lib/dailyColor';
 
@@ -45,9 +44,10 @@ function todayKey(): string {
 const BRACKET_INSET = spacing.xl;
 
 // The card's own breathing room around its content (the bracket-wrapper
-// plus the footer text below it) — keeps the card's border away from the
-// brackets, the same way BRACKET_INSET keeps the brackets away from the
-// swatch. Also the single gap between the bracket-wrapper and the footer.
+// plus the footer below it, when there is one) — keeps the card's border
+// away from the brackets, the same way BRACKET_INSET keeps the brackets
+// away from the swatch. CARD_GAP is the single gap between the
+// bracket-wrapper and the footer, so it only counts when a footer exists.
 const CARD_PADDING = spacing.lg;
 const CARD_GAP = spacing.lg;
 
@@ -70,7 +70,7 @@ function SpecimenCard({
   hex: string;
   hue: number;
   colorName: string;
-  footer: ReactNode;
+  footer?: ReactNode;
 }) {
   const [available, setAvailable] = useState({ width: 0, height: 0 });
   const [footerHeight, setFooterHeight] = useState(0);
@@ -85,7 +85,9 @@ function SpecimenCard({
     setFooterHeight(event.nativeEvent.layout.height);
   }
 
-  const verticalChrome = CARD_PADDING * 2 + CARD_GAP;
+  // No footer means no gap above it either, so the padding stays even on
+  // all four sides and the swatch gets that extra room instead.
+  const verticalChrome = CARD_PADDING * 2 + (footer ? CARD_GAP : 0);
   const horizontalChrome = CARD_PADDING * 2;
   const wrapperSize = Math.max(
     0,
@@ -107,7 +109,7 @@ function SpecimenCard({
             </ColorSwatch>
           </View>
         </View>
-        <View onLayout={handleFooterLayout}>{footer}</View>
+        {footer && <View onLayout={handleFooterLayout}>{footer}</View>}
       </Panel>
     </View>
   );
@@ -203,7 +205,6 @@ function CaptureToday() {
   const { slots, isLoaded } = useRound();
   const target = getDailyTarget();
   const colorName = nameColor(target.hue, target.saturation, target.lightness);
-  const colorFact = getColorFact(target);
 
   const bankedCount = slots.filter((slot) => slot !== null).length;
   const isRoundComplete = bankedCount >= PHOTOS_PER_ROUND;
@@ -232,16 +233,7 @@ function CaptureToday() {
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <SpecimenCard
-        hex={target.hex}
-        hue={target.hue}
-        colorName={colorName}
-        footer={
-          <BodyText style={styles.colorFact} numberOfLines={2}>
-            {colorFact}
-          </BodyText>
-        }
-      />
+      <SpecimenCard hex={target.hex} hue={target.hue} colorName={colorName} />
 
       <Panel
         style={[styles.controlsPanel, { marginBottom: spacing.lg + insets.bottom + TAB_BAR_CLEARANCE }]}
@@ -417,17 +409,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   tickTR: { top: 0, right: 0, borderTopWidth: 1, borderRightWidth: 1 },
   tickBL: { bottom: 0, left: 0, borderBottomWidth: 1, borderLeftWidth: 1 },
   tickBR: { bottom: 0, right: 0, borderBottomWidth: 1, borderRightWidth: 1 },
-  // Deliberately understated: muted color, small size, capped to two
-  // lines — flavor text for the negative space below the specimen frame,
-  // not a competing headline. Body copy, so it's Work Sans (BodyText),
-  // not the hero font.
-  colorFact: {
-    fontSize: typeScale.label,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.xxl,
-  },
   // The verdict is the same hero tier as the score it sits beside, so
   // it's Fugaz One (HeroText) rather than the Work Sans readout treatment.
   verdict: {
