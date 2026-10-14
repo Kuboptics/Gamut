@@ -72,3 +72,28 @@ export const releaseSpringConfig = {
   overshootClamping: true,
   reduceMotion: motionReduceMotion,
 } as const;
+
+// The spring that slides the highlight in Settings' Appearance toggle
+// (components/AppearanceToggle.tsx) between the sun and the moon. With
+// these values it goes very slightly past its target (about 3 points)
+// and settles back, in roughly a quarter of a second. To tune:
+// - damping: lower = more bounce (more overshoot, more wobble), higher =
+//   calmer; around 45 and up there's no overshoot at all.
+// - stiffness: higher = faster and snappier, lower = slower and softer.
+// - mass: higher = heavier and slower to start and stop; usually left at 1.
+export const toggleSpringConfig = {
+  stiffness: 500,
+  damping: 30,
+  mass: 1,
+};
+
+// How long the Appearance toggle waits after a tap before actually
+// switching the theme (re-coloring the whole app and starting the theme
+// fade). Switching re-renders every screen, and applying that briefly
+// blocks animations, so it waits until the highlight's spring above has
+// settled (about 270 ms) instead of stalling it halfway. To tune: lower
+// for a quicker theme switch (it may start to interrupt the slide again),
+// higher for a calmer pause between the slide and the fade; 0 switches
+// immediately on tap. With Reduce Motion on there's no slide, so it always
+// switches immediately.
+export const THEME_SWITCH_DELAY_MS = 300;
