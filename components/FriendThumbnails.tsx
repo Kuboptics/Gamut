@@ -3,8 +3,10 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 import { motionDuration, motionEasing } from '../constants/motion';
 import { spacing, type ThemeColors } from '../constants/theme';
+import { PHOTOS_PER_ROUND } from '../context/RoundContext';
 import { useThemedStyles } from '../context/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { PlaceholderBar } from './PlaceholderBar';
 import { PressableOpacity } from './PressableOpacity';
 
 type FriendThumbnailsProps = {
@@ -50,6 +52,21 @@ export function FriendThumbnails({ urls, style, onPressPhoto }: FriendThumbnails
           <Thumbnail key={index} url={url} />
         );
       })}
+    </View>
+  );
+}
+
+// A skeleton stand-in for a full row of thumbnails while the leaderboard
+// loads — one box per photo in a round, each with the real thumbnail's
+// own size, border and rounding (styles.thumbnail), in the same row
+// layout, so a loaded row with photos takes exactly this much space.
+export function FriendThumbnailsPlaceholder({ style }: { style?: StyleProp<ViewStyle> }) {
+  const thumbnailStyles = useThemedStyles(makeThumbnailStyles);
+  return (
+    <View style={[styles.row, style]}>
+      {Array.from({ length: PHOTOS_PER_ROUND }, (_, index) => (
+        <PlaceholderBar key={index} style={thumbnailStyles.thumbnail} />
+      ))}
     </View>
   );
 }

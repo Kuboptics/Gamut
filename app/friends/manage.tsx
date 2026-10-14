@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Share, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ActionButton } from '../../components/ActionButton';
+import { ActionButton, ActionButtonPlaceholder } from '../../components/ActionButton';
 import { BackButton } from '../../components/BackButton';
 import { BodyText } from '../../components/BodyText';
 import { HeroText } from '../../components/HeroText';
@@ -39,6 +39,9 @@ import { randomDisplayName } from '../../lib/randomName';
 import { withTimeout } from '../../lib/withTimeout';
 
 type LoadStatus = 'loading' | 'loaded' | 'failed';
+
+// How many grey placeholder rows the Friends panel shows while loading.
+const PLACEHOLDER_ROW_COUNT = 3;
 
 // Friend codes, requests, and connections — everything that manages who
 // you're friends with, tucked behind the icon button on the Friends tab
@@ -269,7 +272,16 @@ export default function ManageFriendsScreen() {
               </View>
             </>
           ) : (
-            <BodyText style={styles.note}>Loading your code…</BodyText>
+            // Skeleton of the code area: a box one code-line tall in the
+            // code's own text style (sized from a sample 6-character code),
+            // then the Copy and Share buttons' own shapes.
+            <View accessible accessibilityLabel="Loading your code">
+              <PlaceholderBar textStyle={styles.code} sampleText="ABC123" style={styles.codePlaceholder} />
+              <View style={[styles.buttonRow, styles.codeButtonsPlaceholder]}>
+                <ActionButtonPlaceholder label="Copy" />
+                <ActionButtonPlaceholder label="Share" />
+              </View>
+            </View>
           )}
         </Panel>
 
@@ -307,7 +319,7 @@ export default function ManageFriendsScreen() {
               might not really be empty, and the error panel at the top
               already explains, so this stays blank instead. */}
           {requestsStatus === 'loading' ? (
-            <PlaceholderRow />
+            <PlaceholderRow actions={['Decline', 'Accept']} />
           ) : !hasAnyRequests ? (
             requestsStatus === 'loaded' && <BodyText style={styles.note}>No pending requests.</BodyText>
           ) : (
@@ -357,7 +369,9 @@ export default function ManageFriendsScreen() {
           {/* Same rule as Requests above: placeholders while loading, the
               empty message only once loading has finished. */}
           {friendsStatus === 'loading' ? (
-            [0, 1, 2].map((index) => <PlaceholderRow key={index} />)
+            Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, index) => (
+              <PlaceholderRow key={index} actions={['Remove', 'Block']} showCode />
+            ))
           ) : friends.length === 0 ? (
             friendsStatus === 'loaded' && (
               <BodyText style={styles.note}>No friends yet — share your code to add one.</BodyText>
@@ -405,18 +419,23 @@ export default function ManageFriendsScreen() {
 
 // A stand-in for one friend or request row while its list is loading.
 // Uses the real rows' own layout styles (row, rowIdentity, rowActions),
-// so it has the same shape: a name on the left, buttons on the right.
-// Hidden from VoiceOver, since there's nothing to read yet.
-function PlaceholderRow() {
+// the real text styles for its line heights (rowLabel, and rowCode under
+// it for a friend row), and the real buttons' shapes for the right-hand
+// side (`actions` are those buttons' labels), so it takes the same space
+// as the row it stands in for. Hidden from VoiceOver, since there's
+// nothing to read yet.
+function PlaceholderRow({ actions, showCode = false }: { actions: string[]; showCode?: boolean }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={styles.rowIdentity}>
-        <PlaceholderBar width="50%" />
+        <PlaceholderBar width="50%" textStyle={styles.rowLabel} />
+        {showCode && <PlaceholderBar width="30%" textStyle={styles.rowCode} />}
       </View>
       <View style={styles.rowActions}>
-        <PlaceholderBar width={spacing.xxxl} height={spacing.xl} />
-        <PlaceholderBar width={spacing.xxxl} height={spacing.xl} />
+        {actions.map((label) => (
+          <ActionButtonPlaceholder key={label} label={label} />
+        ))}
       </View>
     </View>
   );
@@ -473,6 +492,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  // Keeps the code skeleton as wide as its sample code rather than
+  // stretching across the whole panel.
+  codePlaceholder: {
+    alignSelf: 'flex-start',
+  },
+  // The real code and button row are separate children of the panel, so
+  // they get the panel's gap between them. In the skeleton they share one
+  // wrapper (for a single VoiceOver label), so the same gap is added here.
+  codeButtonsPlaceholder: {
+    marginTop: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',

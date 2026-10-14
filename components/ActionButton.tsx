@@ -3,6 +3,7 @@ import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { fonts, radius, spacing, typeScale } from '../constants/theme';
 import { useTheme } from '../context/ThemeContext';
 import { BodyText } from './BodyText';
+import { PlaceholderBar } from './PlaceholderBar';
 import { PressableOpacity } from './PressableOpacity';
 
 export type ActionButtonTone = 'positive' | 'signal' | 'neutral';
@@ -43,6 +44,14 @@ export function ActionButton({ label, tone, onPress, filled = false }: ActionBut
       <BodyText style={[styles.label, { color: labelColor }]}>{label}</BodyText>
     </PressableOpacity>
   );
+}
+
+// A skeleton stand-in for an ActionButton while its screen loads. Uses
+// the button's own padding/radius/border (styles.button) and sizes itself
+// from the real label in the real label style, so it takes up exactly the
+// space the finished button will.
+export function ActionButtonPlaceholder({ label }: { label: string }) {
+  return <PlaceholderBar textStyle={styles.label} sampleText={label} style={styles.button} />;
 }
 
 // Layout/text metrics only — no color here, so this stays a plain

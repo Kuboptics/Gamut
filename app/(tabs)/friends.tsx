@@ -8,7 +8,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AppHeader } from '../../components/AppHeader';
 import { BodyText } from '../../components/BodyText';
 import { FlameIcon } from '../../components/FlameIcon';
-import { FriendThumbnails } from '../../components/FriendThumbnails';
+import { FriendThumbnails, FriendThumbnailsPlaceholder } from '../../components/FriendThumbnails';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
@@ -48,6 +48,9 @@ function daysLeftText(daysLeft: number): string {
 // The add-friend button's tap area and the icon drawn inside it.
 const MANAGE_BUTTON_SIZE = 32;
 const MANAGE_ICON_SIZE = 20;
+
+// How many grey placeholder rows the leaderboard shows while loading.
+const PLACEHOLDER_ROW_COUNT = 3;
 
 // The cycle's 30 days are shown as 2 rows of this many circles.
 const CYCLE_CIRCLES_PER_ROW = 15;
@@ -231,6 +234,12 @@ export default function FriendsScreen() {
     setIsRefreshing(false);
   }, [loadLeaderboard]);
 
+  // The leaderboard panel shows while loading (holding placeholder rows)
+  // and once there's a leaderboard to show. It's absent only when the
+  // load has finished with no rows: no friends (the "No Friends Yet"
+  // panel takes over) or a failed first load (the error panel does).
+  const showLeaderboardPanel = loadStatus === 'loading' || leaderboard.length > 0;
+
   const swipeHandlers = useTabSwipe(2);
 
   // Which friend's photo viewer is open, and which of their 3 shots it
@@ -315,8 +324,10 @@ export default function FriendsScreen() {
         <View style={styles.manageRow}>
           {/* Always present (even when empty) so it keeps the icon button
               pushed to the right edge; the title itself shows only when
-              the leaderboard card does. */}
-          <View style={styles.titleSlot}>{leaderboard.length > 0 && <CycleTitle />}</View>
+              the leaderboard card does — which includes while it's still
+              loading, since the cycle is worked out on the phone and
+              doesn't need to wait for the network. */}
+          <View style={styles.titleSlot}>{showLeaderboardPanel && <CycleTitle />}</View>
           <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
             <Ionicons name="person-add-outline" size={MANAGE_ICON_SIZE} color={colors.textMuted} />
             {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
@@ -367,18 +378,20 @@ export default function FriendsScreen() {
             </Panel>
           )}
 
-          {loadStatus === 'loading' && (
-            <Panel style={styles.panel} hue={todayHue} accessibilityLabel="Loading leaderboard">
-              {[0, 1, 2].map((index) => (
-                <PlaceholderRow key={index} />
-              ))}
-            </Panel>
-          )}
-
-          {loadStatus !== 'loading' && leaderboard.length > 0 && (
+          {/* One leaderboard panel, loading or not — only what's inside it
+              changes. The cycle circles are real from the start (worked
+              out on the phone); only the rows wait for the network. */}
+          {showLeaderboardPanel && (
             <Panel style={styles.panel} hue={todayHue}>
               <CycleCircles />
-              {leaderboard.map((entry, index) => {
+              {loadStatus === 'loading' && (
+                <View style={styles.placeholderRows} accessible accessibilityLabel="Loading leaderboard">
+                  {Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, index) => (
+                    <PlaceholderRow key={index} />
+                  ))}
+                </View>
+              )}
+              {loadStatus !== 'loading' && leaderboard.map((entry, index) => {
                 const isYou = entry.userId === userId;
                 // Only friends (not yourself) can be removed, and only if
                 // this entry actually matches a row in `friends` — should
@@ -459,23 +472,27 @@ function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
 
 // A stand-in for one LeaderboardRow while the leaderboard is loading.
 // Built from the real row's own layout styles (row, rankColumn, medalBar,
-// identity, scoreColumn), so it has the same shape and spacing — only the
-// content is swapped for quiet grey bars. Hidden from VoiceOver; the
-// panel around it carries a single "Loading leaderboard" label instead.
+// identity, thumbnails, scoreColumn), and each grey box takes its height
+// from the real text style it replaces (rank, name, pointsValue,
+// streakValue), so it takes the same space as a real row. It copies the
+// taller kind of row, one with today's photos, since most rows on a
+// typical day have them. Hidden from VoiceOver; the wrapper around the
+// rows carries a single "Loading leaderboard" label instead.
 function PlaceholderRow() {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={styles.rankColumn}>
-        <PlaceholderBar width={spacing.lg} height={spacing.xl} />
+        <PlaceholderBar width={spacing.lg} textStyle={styles.rank} />
       </View>
       <View style={styles.medalBar} />
       <View style={styles.identity}>
-        <PlaceholderBar width="60%" />
+        <PlaceholderBar width="60%" textStyle={styles.name} />
+        <FriendThumbnailsPlaceholder style={styles.thumbnails} />
       </View>
       <View style={styles.scoreColumn}>
-        <PlaceholderBar width={spacing.xxl} />
-        <PlaceholderBar width={spacing.xl} height={spacing.md} />
+        <PlaceholderBar width={spacing.xxl} textStyle={styles.pointsValue} />
+        <PlaceholderBar width={spacing.xl} textStyle={styles.streakValue} />
       </View>
     </View>
   );
@@ -654,6 +671,12 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   error: {
     color: colors.signal,
+  },
+  // The placeholder rows sit inside one wrapper (so VoiceOver reads a
+  // single "Loading leaderboard"), so the wrapper repeats the panel's own
+  // gap between rows — real rows get that gap from the panel directly.
+  placeholderRows: {
+    gap: spacing.md,
   },
   // 2 rows of 15 circles, 4pt apart both across and down.
   cycleCircles: {

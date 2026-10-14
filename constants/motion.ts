@@ -20,7 +20,27 @@ export const motionDuration = {
   // Slower than `base` because it's a whole-screen dissolve, not a
   // response to a tap.
   launchFade: 350,
+  // One half of the skeleton loading pulse (full opacity down to
+  // pulseLow, or back up). Slow on purpose: a calm "still loading"
+  // breath, not a blink. See components/PlaceholderBar.tsx.
+  pulse: 900,
 };
+
+// The lowest opacity a skeleton box pulses down to. 0.6 rather than
+// lower so the grey stays visible on light-mode panels at the bottom of
+// each pulse.
+export const pulseLow = 0.6;
+
+// The curve for the skeleton pulse: slow at both ends, so the fade
+// reverses smoothly instead of bouncing (the same sine curve the
+// FlameIcon flicker uses). motionEasing above only eases at the end,
+// which looks jerky on something that goes back and forth.
+export const pulseEasing = Easing.inOut(Easing.sin);
+
+// How long a skeleton box waits before showing. If the data arrives
+// sooner, the box is gone before anyone sees it, so fast loads never
+// flash grey. The box still takes up its space while it waits.
+export const PLACEHOLDER_DELAY_MS = 150;
 
 // The gap between each beat of a staggered reveal (see app/summary.tsx).
 export const REVEAL_STAGGER_MS = 140;

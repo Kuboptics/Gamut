@@ -54,6 +54,11 @@ export const darkColors = {
   // Policy row), so a tappable web link still reads with its familiar
   // blue-and-underline convention rather than blending into plain text.
   link: '#6db3f2',
+  // The grey of skeleton loading boxes (components/PlaceholderBar.tsx).
+  // Same value as secondarySurface in dark mode. Light mode uses the
+  // border value instead, because secondarySurface's #ECE9E3 nearly
+  // vanishes on a tinted near-white panel once the box pulses down.
+  placeholder: '#303030',
 };
 
 // Light counterpart to darkColors above, same keys and same narrow
@@ -86,6 +91,8 @@ export const lightColors: ThemeColors = {
   tierSilver: '#66707E',
   tierBronze: '#A35E32',
   link: '#1A6FC4',
+  // Same value as `border` above — see darkColors.placeholder for why.
+  placeholder: '#E3E0DA',
 };
 
 // Still today's palette, unchanged in shape or behavior — every current
