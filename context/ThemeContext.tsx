@@ -5,7 +5,17 @@
 // known — see RootLayout's own isThemeLoaded gate.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Appearance, StyleSheet, useColorScheme } from 'react-native';
 
 import { darkColors, lightColors, type ThemeColors } from '../constants/theme';
@@ -15,6 +25,19 @@ const STORAGE_KEY = 'colorhunt.themePreference';
 export type ThemePreference = 'system' | 'dark' | 'light';
 export type ColorScheme = 'dark' | 'light';
 
+// One light/dark switch the player caused from Settings: `id` goes up by
+// one each time (so the fade can restart cleanly), `fromBackground` is
+// the background color from just before the switch. Read by
+// components/ThemeSwitchFade.tsx.
+export type ThemeSwitch = { id: number; fromBackground: string };
+
+// How soon after a pick in Settings the scheme has to actually change for
+// it to count as "the player switched" (and get the fade). Picking
+// "System" can take a render or two to resolve (see setPreference below),
+// so this isn't instant; a scheme change outside this window (the phone
+// itself switching appearance, or the first load at launch) never fades.
+const USER_PICK_WINDOW_MS = 1000;
+
 type ThemeContextValue = {
   // The resolved palette for whatever `scheme` currently is — darkColors
   // or lightColors from constants/theme.ts, never a mix of the two.
@@ -23,6 +46,9 @@ type ThemeContextValue = {
   preference: ThemePreference;
   setPreference: (next: ThemePreference) => void;
   isThemeLoaded: boolean;
+  // The latest player-caused switch, or null if there hasn't been one
+  // this session.
+  themeSwitch: ThemeSwitch | null;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -78,7 +104,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // When the player last picked an option in Settings (see the
+  // useLayoutEffect below for how it's used).
+  const userPickedAtRef = useRef<number | null>(null);
+
   const setPreference = useCallback((next: ThemePreference) => {
+    userPickedAtRef.current = Date.now();
     setPreferenceState(next);
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {
       // Non-fatal: the in-memory choice still applies this session; it
@@ -93,9 +124,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const scheme: ColorScheme = preference === 'system' ? (systemScheme ?? 'dark') : preference;
   const colors = scheme === 'dark' ? darkColors : lightColors;
 
+  // Spots the moment the resolved scheme actually flips, and records it
+  // as a player switch if it happened right after a pick in Settings.
+  // useLayoutEffect (not useEffect) on purpose: a state update made here
+  // is applied before the new colors reach the screen, so the fade's
+  // cover (components/ThemeSwitchFade.tsx) appears in the very same frame
+  // as the new colors, instead of one frame of new colors flashing first.
+  const [themeSwitch, setThemeSwitch] = useState<ThemeSwitch | null>(null);
+  const previousRef = useRef({ scheme, background: colors.background });
+  useLayoutEffect(() => {
+    const previous = previousRef.current;
+    previousRef.current = { scheme, background: colors.background };
+    if (previous.scheme === scheme) return;
+
+    const pickedAt = userPickedAtRef.current;
+    userPickedAtRef.current = null;
+    if (pickedAt === null || Date.now() - pickedAt > USER_PICK_WINDOW_MS) return;
+
+    setThemeSwitch((last) => ({ id: (last?.id ?? 0) + 1, fromBackground: previous.background }));
+  }, [scheme, colors.background]);
+
   const value = useMemo<ThemeContextValue>(
-    () => ({ colors, scheme, preference, setPreference, isThemeLoaded }),
-    [colors, scheme, preference, setPreference, isThemeLoaded]
+    () => ({ colors, scheme, preference, setPreference, isThemeLoaded, themeSwitch }),
+    [colors, scheme, preference, setPreference, isThemeLoaded, themeSwitch]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

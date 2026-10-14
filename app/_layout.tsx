@@ -10,6 +10,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 import { IntroModal } from '../components/IntroModal';
 import { PushNotificationSetup } from '../components/PushNotificationSetup';
+import { ThemeSwitchFade } from '../components/ThemeSwitchFade';
 import { motionDuration, motionEasing, motionReduceMotion } from '../constants/motion';
 import { AuthProvider } from '../context/AuthContext';
 import { HistoryProvider } from '../context/HistoryContext';
@@ -148,6 +149,9 @@ function RootLayoutContent() {
           </AuthProvider>
         </OverlayProvider>
       </Animated.View>
+      {/* Above everything else, so its cover hides the whole app (tab bar
+          included) while the light/dark switch dissolves. */}
+      <ThemeSwitchFade />
     </View>
   );
 }

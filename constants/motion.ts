@@ -24,6 +24,10 @@ export const motionDuration = {
   // pulseLow, or back up). Slow on purpose: a calm "still loading"
   // breath, not a blink. See components/PlaceholderBar.tsx.
   pulse: 900,
+  // The dissolve when the player switches between light and dark mode in
+  // Settings: a cover in the old background color fades out over the new
+  // colors. See components/ThemeSwitchFade.tsx.
+  themeFade: 150,
 };
 
 // The lowest opacity a skeleton box pulses down to. 0.6 rather than
