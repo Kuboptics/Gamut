@@ -66,20 +66,25 @@ export const darkColors = {
 // both modes — only the neutral chrome flips). Every text color
 // (textPrimary, textMuted, signal, positive, link) was checked at
 // 4.5:1 (WCAG AA) against both background and surface below.
+// textMuted, signal, positive and link are also a shade darker than
+// they'd need to be for those two, so they keep 4.5:1 on the day-tinted
+// light panels too (see getDailyAccent in lib/dailyColor.ts), where
+// blue-tinted panels are the darkest case.
 export const lightColors: ThemeColors = {
   background: '#F5F3EF',
   surface: '#FFFFFF',
   border: '#E3E0DA',
   secondarySurface: '#ECE9E3',
   textPrimary: '#121212',
-  textMuted: '#6B6B6B',
-  signal: '#D71921',
+  textMuted: '#686868',
+  signal: '#CE1820',
   // Adjusted from the proposed #2E8B3E, which failed 4.5:1 as text on
   // both light surfaces (3.88:1 on background, 4.30:1 on surface).
   // Darkened only (same hue ~130°, same saturation, lower lightness)
   // until it cleared 4.5:1 against the worse of the two — now 4.52:1 on
-  // background, 5.01:1 on surface.
-  positive: '#2A7F39',
+  // background, 5.01:1 on surface. Then darkened one small step more
+  // (#2A7F39 to #277736) for the day-tinted panels, see above.
+  positive: '#277736',
   flame: '#E8481A',
   medalGold: '#B3944F',
   medalSilver: '#9CA3AA',
@@ -90,7 +95,7 @@ export const lightColors: ThemeColors = {
   tierGold: '#9A641B',
   tierSilver: '#66707E',
   tierBronze: '#A35E32',
-  link: '#1A6FC4',
+  link: '#196ABB',
   // Same value as `border` above — see darkColors.placeholder for why.
   placeholder: '#E3E0DA',
 };

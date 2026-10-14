@@ -21,7 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { CYCLE_DAYS, cycleInfo } from '../../lib/cycle';
-import { getDailyTarget } from '../../lib/dailyColor';
+import { getDailyTarget, getTodayRingColor } from '../../lib/dailyColor';
 import { blockUser, fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
 import { todayKey } from '../../lib/streak';
@@ -54,6 +54,13 @@ const PLACEHOLDER_ROW_COUNT = 3;
 
 // The cycle's 30 days are shown as 2 rows of this many circles.
 const CYCLE_CIRCLES_PER_ROW = 15;
+
+// Light mode's ring around today's circle: the ring's thickness, and the
+// see-through gap between it and the circle. The ring sits at the cell's
+// edge (where every other circle's edge is), so it never crowds the
+// neighbouring circles; today's circle shrinks by both amounts instead.
+const TODAY_RING_WIDTH = 1.5;
+const TODAY_RING_GAP = 1.5;
 
 // The daily target color for each day of the cycle, in order — or null
 // for a day that hasn't come yet. Future days are never looked up, so the
@@ -106,6 +113,7 @@ function CycleTitle() {
 // CycleTitle above already says where in the cycle we are.
 function CycleCircles() {
   const styles = useThemedStyles(makeStyles);
+  const { scheme } = useTheme();
   const { dayInCycle, startKey } = cycleInfo(todayKey());
   // All 30 colors worked out once here (a table lookup each), not in
   // every circle.
@@ -118,12 +126,28 @@ function CycleCircles() {
         <View key={rowIndex} style={styles.cycleCircleRow}>
           {rowColors.map((color, columnIndex) => {
             const index = rowIndex * CYCLE_CIRCLES_PER_ROW + columnIndex;
+            const isToday = index === dayInCycle - 1;
+            // Light mode marks today with a "gap ring": the circle shrinks
+            // a little, a sliver of panel shows around it, then a thin ring
+            // in a darker shade of today's own color. Dark mode keeps its
+            // original white ring drawn over the circle's edge.
+            const lightRingColor = isToday && scheme === 'light' && color ? getTodayRingColor(color) : null;
             // The cell decides the size and position; the circle and
             // today's ring are drawn inside it and can't change it.
             return (
               <View key={index} style={styles.cycleCell}>
-                <View style={[styles.cycleCircle, color ? { backgroundColor: color } : null]} />
-                {index === dayInCycle - 1 && <View style={styles.cycleTodayRing} />}
+                <View
+                  style={[
+                    styles.cycleCircle,
+                    color ? { backgroundColor: color } : null,
+                    lightRingColor ? styles.cycleCircleInsideRing : null,
+                  ]}
+                />
+                {lightRingColor ? (
+                  <View style={[styles.cycleTodayGapRing, { borderColor: lightRingColor }]} />
+                ) : (
+                  isToday && <View style={styles.cycleTodayRing} />
+                )}
               </View>
             );
           })}
@@ -708,12 +732,32 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.textMuted,
   },
-  // Today's ring, drawn the same way on top of the circle.
+  // Today's ring, drawn the same way on top of the circle. Dark mode only
+  // (light mode uses the gap ring below).
   cycleTodayRing: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 999,
     borderWidth: 2,
     borderColor: colors.textPrimary,
+  },
+  // Light mode, today only: the circle pulls in from the cell's edge to
+  // leave room for the gap and the ring. No muted edge here — the ring
+  // already frames it.
+  cycleCircleInsideRing: {
+    top: TODAY_RING_WIDTH + TODAY_RING_GAP,
+    left: TODAY_RING_WIDTH + TODAY_RING_GAP,
+    right: TODAY_RING_WIDTH + TODAY_RING_GAP,
+    bottom: TODAY_RING_WIDTH + TODAY_RING_GAP,
+    borderWidth: 0,
+  },
+  // Light mode, today only: the thin ring at the cell's edge. Its color
+  // (a darker shade of today's own color) is set inline from
+  // getTodayRingColor in lib/dailyColor.ts. The gap between it and the
+  // circle is see-through, so it's always exactly the panel's own color.
+  cycleTodayGapRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+    borderWidth: TODAY_RING_WIDTH,
   },
   // One shape for every row, rank 1 included — same paddingHorizontal and
   // the same borderWidth/borderRadius, so nothing shifts horizontally
@@ -747,13 +791,16 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   // The same 8%-opacity gold reads noticeably fainter on a light row
   // than on a dark one (alpha blending scales with whatever's under
-  // it), so light mode uses a higher alpha (0.12) to land at a visually
+  // it), so light mode uses a higher alpha to land at a visually
   // comparable "barely there" tint instead of the mathematically same
-  // but visually weaker one. Applied as an override on top of
+  // but visually weaker one. 0.18 (up from 0.12) because the light panels
+  // now carry a stronger day-color wash, which the old 0.12 gold faded
+  // into; 0.18 keeps the row a touch more distinct from the panel than
+  // 0.12 was on the old, paler panel. Applied as an override on top of
   // rowRankOne above (unchanged), so dark mode stays byte-for-byte as
   // it was.
   rowRankOneLight: {
-    backgroundColor: 'rgba(179, 148, 79, 0.12)',
+    backgroundColor: 'rgba(179, 148, 79, 0.18)',
   },
   rankColumn: {
     width: 32,

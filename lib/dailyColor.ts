@@ -170,32 +170,54 @@ const CHROME_SATURATION = 35;
 const CHROME_DARK_BACKGROUND_LIGHTNESS = 10; // close to darkColors.surface's own depth
 const CHROME_DARK_BORDER_LIGHTNESS = 20;
 
-// Light mode's own tint — a separate, stronger saturation than the dark
-// set above, so it still reads as a real color wash instead of nearly
-// vanishing into the near-white background. To tune: lower
-// CHROME_LIGHT_BACKGROUND_LIGHTNESS for a more saturated-looking fill
-// (then re-run the per-hue WCAG check below — going lower risks text
-// contrast); CHROME_LIGHT_BORDER_LIGHTNESS only shapes the hairline
-// edge and isn't held to the same 4.5:1 bar, since no text ever sits
-// directly on a 1px border. These values are the result of starting
-// from saturation 50 / background 90 / border 78, then raising only
-// the background lightness in steps of 1 until every light-mode text
-// color (textPrimary, textMuted, positive, signal, link) cleared 4.5:1
-// against the tinted background across all 360 hues — see the
-// migration report for the full per-hue numbers.
-const CHROME_LIGHT_SATURATION = 50;
-const CHROME_LIGHT_BACKGROUND_LIGHTNESS = 97;
-const CHROME_LIGHT_BORDER_LIGHTNESS = 78;
+// Light mode's own tint: a clear wash of the day's color behind the
+// panel, with a stronger edge. The fill and the border are tuned
+// separately.
+//
+// Fill: text sits on it, so it must keep every light-mode text color
+// (textPrimary, textMuted, link, positive, signal in constants/theme.ts)
+// at 4.5:1 or better for every hue. Blue hues (around 240) are the
+// darkest at any given lightness, so they're always the worst case.
+// To tune: lower the lightness or raise the saturation for a stronger
+// wash, then re-check the contrast at hue 240.
+const CHROME_LIGHT_FILL_SATURATION = 60;
+const CHROME_LIGHT_BACKGROUND_LIGHTNESS = 94;
+
+// Border: just the panel's hairline edge. No text sits on it, so it isn't
+// held to the text-contrast rule and can be much stronger than the fill.
+// To tune: lower the lightness for a darker edge, lower the saturation for
+// a greyer one.
+const CHROME_LIGHT_BORDER_SATURATION = 70;
+const CHROME_LIGHT_BORDER_LIGHTNESS = 60;
 
 export function getDailyAccent(
   hue: number,
   scheme: 'dark' | 'light' = 'dark'
 ): { background: string; border: string } {
-  const saturation = scheme === 'dark' ? CHROME_SATURATION : CHROME_LIGHT_SATURATION;
-  const backgroundLightness = scheme === 'dark' ? CHROME_DARK_BACKGROUND_LIGHTNESS : CHROME_LIGHT_BACKGROUND_LIGHTNESS;
-  const borderLightness = scheme === 'dark' ? CHROME_DARK_BORDER_LIGHTNESS : CHROME_LIGHT_BORDER_LIGHTNESS;
+  const isDark = scheme === 'dark';
+  // Dark mode uses one saturation for both, exactly as before.
+  const fillSaturation = isDark ? CHROME_SATURATION : CHROME_LIGHT_FILL_SATURATION;
+  const borderSaturation = isDark ? CHROME_SATURATION : CHROME_LIGHT_BORDER_SATURATION;
+  const backgroundLightness = isDark ? CHROME_DARK_BACKGROUND_LIGHTNESS : CHROME_LIGHT_BACKGROUND_LIGHTNESS;
+  const borderLightness = isDark ? CHROME_DARK_BORDER_LIGHTNESS : CHROME_LIGHT_BORDER_LIGHTNESS;
   return {
-    background: rgbToHex(hslToRgb(hue, saturation, backgroundLightness)),
-    border: rgbToHex(hslToRgb(hue, saturation, borderLightness)),
+    background: rgbToHex(hslToRgb(hue, fillSaturation, backgroundLightness)),
+    border: rgbToHex(hslToRgb(hue, borderSaturation, borderLightness)),
   };
+}
+
+// Light mode only: the ring around today's circle on the Friends tab's
+// cycle circles (see app/(tabs)/friends.tsx). A darker version of that
+// day's own color, rather than black, so it frames the color instead of
+// clashing with it. Same hue and saturation as the day's color, at this
+// fixed lightness. 28 keeps the ring at 3.7:1 or better against the
+// tinted panel for every possible daily color (worst case: saturated
+// yellows), above the 3:1 guideline for non-text marks. To tune: lower
+// for a darker, stronger ring; raise for a softer one (re-check yellows).
+// Dark mode keeps its original white ring and doesn't use this.
+const TODAY_RING_LIGHTNESS = 28;
+
+export function getTodayRingColor(hex: string): string {
+  const { h, s } = rgbToHsl(hexToRgb(hex));
+  return rgbToHex(hslToRgb(h, s, TODAY_RING_LIGHTNESS));
 }
