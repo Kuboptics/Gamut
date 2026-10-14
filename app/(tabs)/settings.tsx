@@ -9,8 +9,9 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming
 
 import { ActionButton } from '../../components/ActionButton';
 import { AppHeader } from '../../components/AppHeader';
+import { AppearanceToggle } from '../../components/AppearanceToggle';
 import { BodyText } from '../../components/BodyText';
-import { CollapsibleCard } from '../../components/CollapsibleCard';
+import { CardTitle, cardLayoutStyles, CollapsibleCard } from '../../components/CollapsibleCard';
 import { Divider } from '../../components/Divider';
 import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
@@ -24,7 +25,7 @@ import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors 
 import { motionDuration, motionEasing } from '../../constants/motion';
 import { useAuth } from '../../context/AuthContext';
 import { useReminder } from '../../context/ReminderContext';
-import { useTheme, useThemedStyles, type ThemePreference } from '../../context/ThemeContext';
+import { useTheme, useThemedStyles } from '../../context/ThemeContext';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { getDailyTarget } from '../../lib/dailyColor';
@@ -49,14 +50,6 @@ function formatTime(hour: number, minute: number): string {
   const displayHour = ((hour + 11) % 12) + 1;
   return `${displayHour}:${String(minute).padStart(2, '0')} ${period}`;
 }
-
-// The three choices in the Appearance card, in display order — System
-// first since it's the default, matching ThemeContext's own default.
-const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
-];
 
 // The "How it works" sections, in order. No emojis, just plain
 // typographic hierarchy, like an instrument manual. The Points and Badges
@@ -99,7 +92,7 @@ const HOW_IT_WORKS = [
 // accounts, no server, matching the rest of the app's Phase 2 features.
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, preference, setPreference } = useTheme();
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { enabled, hour, minute, isLoaded, permissionDenied, setEnabled, setTime } = useReminder();
   const [showAndroidPicker, setShowAndroidPicker] = useState(false);
@@ -455,28 +448,13 @@ export default function SettingsScreen() {
             )}
           </Panel>
 
-          <Panel style={styles.appearancePanel} hue={todayHue}>
-            <Label>Appearance</Label>
-            <View style={styles.appearanceRow} accessibilityRole="radiogroup">
-              {APPEARANCE_OPTIONS.map((option) => {
-                const isSelected = preference === option.value;
-                return (
-                  <PressableOpacity
-                    key={option.value}
-                    style={[styles.appearanceOption, isSelected && styles.appearanceOptionSelected]}
-                    onPress={() => setPreference(option.value)}
-                    accessibilityRole="radio"
-                    accessibilityLabel={`${option.label} appearance`}
-                    accessibilityState={{ checked: isSelected }}
-                  >
-                    <BodyText
-                      style={[styles.appearanceOptionLabel, isSelected && styles.appearanceOptionLabelSelected]}
-                    >
-                      {option.label}
-                    </BodyText>
-                  </PressableOpacity>
-                );
-              })}
+          {/* Same panel padding, title style and title-row height as the
+              "Account settings" and "How it works" cards below, so the
+              three read as one set. */}
+          <Panel style={cardLayoutStyles.panel} hue={todayHue}>
+            <View style={cardLayoutStyles.header}>
+              <CardTitle>Appearance</CardTitle>
+              <AppearanceToggle />
             </View>
           </Panel>
 
@@ -697,43 +675,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   picker: {
     height: IOS_PICKER_HEIGHT,
     width: '100%',
-  },
-  // Layout only — the surface fill/border/radius come from Panel.
-  appearancePanel: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
-    gap: spacing.md,
-  },
-  appearanceRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  // Equal-width chips (flex: 1 each) — outline-only when unselected,
-  // filled when selected, same filled/unfilled contrast as the
-  // Save/Sign Out/Delete buttons above (see fullWidthButton/saveButton).
-  appearanceOption: {
-    flex: 1,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingVertical: spacing.sm,
-  },
-  appearanceOptionSelected: {
-    backgroundColor: colors.textPrimary,
-    borderColor: colors.textPrimary,
-  },
-  appearanceOptionLabel: {
-    ...fonts.primarySemiBold,
-    fontSize: typeScale.label,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: colors.textPrimary,
-  },
-  appearanceOptionLabelSelected: {
-    color: colors.background,
   },
   // The rows inside "Account settings", with the same 12pt spacing the
   // Account card used before it became collapsible.

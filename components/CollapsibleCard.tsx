@@ -56,9 +56,7 @@ export function CollapsibleCard({ title, children, defaultOpen = false, onOpenCh
         accessibilityState={{ expanded: open }}
         accessibilityLabel={title}
       >
-        <HeroText style={styles.title} maxFontSizeMultiplier={TITLE_MAX_FONT_SCALE}>
-          {title}
-        </HeroText>
+        <CardTitle>{title}</CardTitle>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
       </PressableOpacity>
 
@@ -75,6 +73,18 @@ export function CollapsibleCard({ title, children, defaultOpen = false, onOpenCh
         </Animated.View>
       )}
     </Panel>
+  );
+}
+
+// The card's title text: the bold system face (HeroText) at
+// typeScale.value. Exported, together with the layout styles below, so a
+// non-collapsing card with a title row (Settings' Appearance) uses the
+// exact same style instead of a copy.
+export function CardTitle({ children }: { children: ReactNode }) {
+  return (
+    <HeroText style={styles.title} maxFontSizeMultiplier={TITLE_MAX_FONT_SCALE}>
+      {children}
+    </HeroText>
   );
 }
 
@@ -108,3 +118,10 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
 });
+
+// The card's panel padding and title-row layout, for a screen building a
+// card that should match this one (see CardTitle above).
+export const cardLayoutStyles = {
+  panel: styles.panel,
+  header: styles.header,
+};

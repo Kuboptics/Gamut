@@ -16,13 +16,15 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Appearance, StyleSheet, useColorScheme } from 'react-native';
+import { Appearance, StyleSheet } from 'react-native';
 
 import { darkColors, lightColors, type ThemeColors } from '../constants/theme';
 
 const STORAGE_KEY = 'colorhunt.themePreference';
 
-export type ThemePreference = 'system' | 'dark' | 'light';
+// The player's saved choice: just dark or light. (Older versions also had
+// a 'system' choice; it's converted once at launch, see the load effect.)
+export type ThemePreference = 'dark' | 'light';
 export type ColorScheme = 'dark' | 'light';
 
 // One light/dark switch the player caused from Settings: `id` goes up by
@@ -32,10 +34,10 @@ export type ColorScheme = 'dark' | 'light';
 export type ThemeSwitch = { id: number; fromBackground: string };
 
 // How soon after a pick in Settings the scheme has to actually change for
-// it to count as "the player switched" (and get the fade). Picking
-// "System" can take a render or two to resolve (see setPreference below),
-// so this isn't instant; a scheme change outside this window (the phone
-// itself switching appearance, or the first load at launch) never fades.
+// it to count as "the player switched" (and get the fade). A pick changes
+// it in the very next render, so this is a generous margin; a scheme
+// change outside this window (the saved choice loading at launch) never
+// fades.
 const USER_PICK_WINDOW_MS = 1000;
 
 type ThemeContextValue = {
@@ -54,7 +56,14 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function isThemePreference(value: unknown): value is ThemePreference {
-  return value === 'system' || value === 'dark' || value === 'light';
+  return value === 'dark' || value === 'light';
+}
+
+// The phone's own appearance right now, dark if it can't say. Used only to
+// pick a starting choice when there's no valid saved one (see the load
+// effect below).
+function phoneScheme(): ColorScheme {
+  return Appearance.getColorScheme() === 'light' ? 'light' : 'dark';
 }
 
 // Appearance.setColorScheme only affects what *this app's* own
@@ -68,7 +77,7 @@ function isThemePreference(value: unknown): value is ThemePreference {
 // Wrapped in try/catch purely so a platform/version quirk here can
 // never crash the app; the in-app `colors` above are the real source of
 // truth either way.
-function applyNativeColorScheme(scheme: ColorScheme | null) {
+function applyNativeColorScheme(scheme: ColorScheme) {
   try {
     Appearance.setColorScheme(scheme);
   } catch {
@@ -77,26 +86,41 @@ function applyNativeColorScheme(scheme: ColorScheme | null) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const systemScheme = useColorScheme();
-  const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  // Starts from the phone's current appearance until the saved choice is
+  // read. Never actually seen: app/_layout.tsx keeps the splash screen up
+  // until isThemeLoaded.
+  const [preference, setPreferenceState] = useState<ThemePreference>(phoneScheme);
   const [isThemeLoaded, setIsThemeLoaded] = useState(false);
 
-  // Loads the saved preference once at startup — same shape as
-  // ReminderContext's own load effect. An unreadable/corrupt/missing
-  // value just leaves `preference` at its 'system' default.
+  // Loads the saved choice once at startup — same shape as
+  // ReminderContext's own load effect.
+  // - A saved 'dark' or 'light' is used as is.
+  // - Anything else (an old 'system' from before this setting had only two
+  //   options, nothing saved yet on a fresh install, or an unreadable
+  //   value) is resolved ONCE to the phone's current appearance and saved,
+  //   so from then on the app follows that saved choice, not the phone.
+  // Either way the choice is also passed to iOS, so native parts (like the
+  // tab bar) match it from launch.
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      let chosen: ThemePreference;
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!cancelled && isThemePreference(raw)) {
-          setPreferenceState(raw);
+        chosen = isThemePreference(raw) ? raw : phoneScheme();
+        if (!isThemePreference(raw)) {
+          AsyncStorage.setItem(STORAGE_KEY, chosen).catch(() => {
+            // Non-fatal: it's simply resolved again on the next launch.
+          });
         }
       } catch {
-        // Unreadable/corrupt storage just starts at the 'system' default.
-      } finally {
-        if (!cancelled) setIsThemeLoaded(true);
+        // Unreadable storage: start from the phone's appearance.
+        chosen = phoneScheme();
       }
+      if (cancelled) return;
+      setPreferenceState(chosen);
+      applyNativeColorScheme(chosen);
+      setIsThemeLoaded(true);
     }
     load();
     return () => {
@@ -115,13 +139,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // Non-fatal: the in-memory choice still applies this session; it
       // just won't survive an app restart.
     });
-    applyNativeColorScheme(next === 'system' ? null : next);
+    applyNativeColorScheme(next);
   }, []);
 
-  // `useColorScheme()` can report null (briefly, or on some
-  // platforms/timings) — dark is this app's own long-standing default
-  // regardless, not an arbitrary fallback picked for this step.
-  const scheme: ColorScheme = preference === 'system' ? (systemScheme ?? 'dark') : preference;
+  // The saved choice is the scheme: there's no "follow the phone" option.
+  const scheme: ColorScheme = preference;
   const colors = scheme === 'dark' ? darkColors : lightColors;
 
   // Spots the moment the resolved scheme actually flips, and records it
