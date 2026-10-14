@@ -364,6 +364,9 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
       <AppHeader />
       <ScrollView
+        // Never let iOS add its own top inset here on a tab's first show —
+        // AppHeader above already handles the safe area.
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },

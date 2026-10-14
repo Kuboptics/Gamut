@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, spacing, typeScale, type ThemeColors } from '../constants/theme';
 import { useThemedStyles } from '../context/ThemeContext';
@@ -19,12 +19,20 @@ import { ReadoutText } from './ReadoutText';
 // single ticking timer shared by every screen — this component only
 // formats and renders it. Applies its own top safe-area inset (it used to
 // rely on the layout's SafeAreaView for that).
+//
+// The inset comes from useSafeAreaInsets() (the one app-wide value, known
+// before the first render) as plain padding, not from the native
+// SafeAreaView component. The native one measures its own position on
+// screen, and a tab that has never been shown isn't on screen yet, so on
+// that tab's first frame it could report 0 and then jump the whole screen
+// down by the notch height a frame later.
 export function AppHeader() {
   const countdownMs = useCountdown();
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <View style={[styles.safeArea, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
         <View style={styles.wordmark}>
           <HeroText style={styles.wordmarkTitle}>Gamut</HeroText>
@@ -38,7 +46,7 @@ export function AppHeader() {
           </View>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
