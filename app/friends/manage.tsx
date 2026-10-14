@@ -11,6 +11,7 @@ import { BodyText } from '../../components/BodyText';
 import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
+import { PlaceholderBar } from '../../components/PlaceholderBar';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
 import { TextField } from '../../components/TextField';
@@ -35,6 +36,9 @@ import {
   type OutgoingRequest,
 } from '../../lib/friends';
 import { randomDisplayName } from '../../lib/randomName';
+import { withTimeout } from '../../lib/withTimeout';
+
+type LoadStatus = 'loading' | 'loaded' | 'failed';
 
 // Friend codes, requests, and connections — everything that manages who
 // you're friends with, tucked behind the icon button on the Friends tab
@@ -52,6 +56,13 @@ export default function ManageFriendsScreen() {
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
   const [loadError, setLoadError] = useState(false);
+  // Where the friends list and the requests list each stand. Both start at
+  // 'loading' so an empty list is never mistaken for "no friends" / "no
+  // requests" before the data has arrived — the empty messages only show
+  // once the matching status is 'loaded'. A refetch of an already-loaded
+  // list stays 'loaded', so the rows don't flash back to placeholders.
+  const [friendsStatus, setFriendsStatus] = useState<LoadStatus>('loading');
+  const [requestsStatus, setRequestsStatus] = useState<LoadStatus>('loading');
 
   const [codeInput, setCodeInput] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
@@ -62,18 +73,43 @@ export default function ManageFriendsScreen() {
 
   const refresh = useCallback(() => {
     setLoadError(false);
+    // Retrying after a failure goes back to placeholders while it runs.
+    setFriendsStatus((status) => (status === 'failed' ? 'loading' : status));
+    setRequestsStatus((status) => (status === 'failed' ? 'loading' : status));
+
+    // Every request below goes through withTimeout (lib/withTimeout.ts),
+    // so a stalled connection ends in the error panel instead of leaving
+    // "Loading your code…" or the placeholder rows up forever.
 
     // Only ever used as the one-time fallback name if this account's
     // profile row doesn't exist yet (see ensureProfile in lib/friends.ts)
     // — a fresh random value is safe to pass on every call, since it's
     // discarded once a profile already exists.
-    ensureProfile(userId, randomDisplayName())
+    withTimeout(ensureProfile(userId, randomDisplayName()))
       .then((profile) => setMyCode(profile.friendCode))
       .catch(() => setLoadError(true));
-    fetchIncomingRequests(userId).then(setIncoming).catch(() => setLoadError(true));
-    fetchOutgoingRequests(userId).then(setOutgoing).catch(() => setLoadError(true));
-    fetchFriends(userId).then(setFriends).catch(() => setLoadError(true));
-    fetchBlockedUsers(userId).then(setBlocked).catch(() => setLoadError(true));
+    // Incoming and sent requests share one panel, so they're loaded
+    // together and the panel switches from placeholders to real rows once.
+    withTimeout(Promise.all([fetchIncomingRequests(userId), fetchOutgoingRequests(userId)]))
+      .then(([incomingList, outgoingList]) => {
+        setIncoming(incomingList);
+        setOutgoing(outgoingList);
+        setRequestsStatus('loaded');
+      })
+      .catch(() => {
+        setLoadError(true);
+        setRequestsStatus('failed');
+      });
+    withTimeout(fetchFriends(userId))
+      .then((friendList) => {
+        setFriends(friendList);
+        setFriendsStatus('loaded');
+      })
+      .catch(() => {
+        setLoadError(true);
+        setFriendsStatus('failed');
+      });
+    withTimeout(fetchBlockedUsers(userId)).then(setBlocked).catch(() => setLoadError(true));
   }, [userId]);
 
   useFocusEffect(refresh);
@@ -266,8 +302,14 @@ export default function ManageFriendsScreen() {
             {incoming.length > 0 && <View style={styles.countBadge} />}
           </View>
 
-          {!hasAnyRequests ? (
-            <BodyText style={styles.note}>No pending requests.</BodyText>
+          {/* Placeholders while loading. The "No pending requests." line
+              only once loading has finished — after a failure the list
+              might not really be empty, and the error panel at the top
+              already explains, so this stays blank instead. */}
+          {requestsStatus === 'loading' ? (
+            <PlaceholderRow />
+          ) : !hasAnyRequests ? (
+            requestsStatus === 'loaded' && <BodyText style={styles.note}>No pending requests.</BodyText>
           ) : (
             <>
               {incoming.length > 0 && (
@@ -312,8 +354,14 @@ export default function ManageFriendsScreen() {
         <Panel style={styles.panel} hue={todayHue}>
           <Label>Friends</Label>
           {removeError && <BodyText style={styles.error}>{removeError}</BodyText>}
-          {friends.length === 0 ? (
-            <BodyText style={styles.note}>No friends yet — share your code to add one.</BodyText>
+          {/* Same rule as Requests above: placeholders while loading, the
+              empty message only once loading has finished. */}
+          {friendsStatus === 'loading' ? (
+            [0, 1, 2].map((index) => <PlaceholderRow key={index} />)
+          ) : friends.length === 0 ? (
+            friendsStatus === 'loaded' && (
+              <BodyText style={styles.note}>No friends yet — share your code to add one.</BodyText>
+            )
           ) : (
             friends.map((friend) => (
               <View key={friend.id} style={styles.row}>
@@ -352,6 +400,25 @@ export default function ManageFriendsScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// A stand-in for one friend or request row while its list is loading.
+// Uses the real rows' own layout styles (row, rowIdentity, rowActions),
+// so it has the same shape: a name on the left, buttons on the right.
+// Hidden from VoiceOver, since there's nothing to read yet.
+function PlaceholderRow() {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={styles.rowIdentity}>
+        <PlaceholderBar width="50%" />
+      </View>
+      <View style={styles.rowActions}>
+        <PlaceholderBar width={spacing.xxxl} height={spacing.xl} />
+        <PlaceholderBar width={spacing.xxxl} height={spacing.xl} />
+      </View>
+    </View>
   );
 }
 

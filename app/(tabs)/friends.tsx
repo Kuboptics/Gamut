@@ -13,6 +13,7 @@ import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
+import { PlaceholderBar } from '../../components/PlaceholderBar';
 import { PressableOpacity } from '../../components/PressableOpacity';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors } from '../../constants/theme';
@@ -24,6 +25,7 @@ import { getDailyTarget } from '../../lib/dailyColor';
 import { blockUser, fetchFriends, fetchIncomingRequests, removeFriend, type Friend } from '../../lib/friends';
 import { fetchLeaderboard, rankLeaderboard, type LeaderboardEntry } from '../../lib/leaderboard';
 import { todayKey } from '../../lib/streak';
+import { withTimeout } from '../../lib/withTimeout';
 
 // The points and streak numbers sit in a narrow right-hand column, so
 // they may grow a little with the iPhone's text-size setting, but not
@@ -152,7 +154,12 @@ export default function FriendsScreen() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [hasFriends, setHasFriends] = useState(false);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
-  const [loadError, setLoadError] = useState(false);
+  // Where the leaderboard load stands. Starts at 'loading' so the screen
+  // never mistakes "not loaded yet" for "no friends" — the empty state
+  // only shows once this is 'loaded'. A later refetch (focus, foreground,
+  // pull-to-refresh) leaves it at 'loaded' so the list stays on screen
+  // instead of flashing back to placeholders.
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'loaded' | 'failed'>('loading');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
@@ -163,23 +170,35 @@ export default function FriendsScreen() {
   // refresh below just fires it and ignores the result, same as before.
   const loadLeaderboard = useCallback(async () => {
     if (!userId) return;
-    setLoadError(false);
+    // Retrying after a failure goes back to placeholders (the error panel
+    // disappears while the retry runs); a refetch of an already-loaded
+    // list stays 'loaded'.
+    setLoadStatus((status) => (status === 'failed' ? 'loading' : status));
 
     fetchIncomingRequests(userId)
       .then((requests) => setPendingRequestCount(requests.length))
       .catch(() => {});
 
     try {
-      const friendList = await fetchFriends(userId);
+      // Both requests share one time limit (see lib/withTimeout.ts), so a
+      // stalled connection ends in the error panel instead of leaving the
+      // placeholders up forever.
+      const { friendList, entries } = await withTimeout(
+        (async () => {
+          const list = await fetchFriends(userId);
+          const rows = await fetchLeaderboard(
+            userId,
+            list.map((friend) => friend.userId)
+          );
+          return { friendList: list, entries: rows };
+        })()
+      );
       setFriends(friendList);
       setHasFriends(friendList.length > 0);
-      const entries = await fetchLeaderboard(
-        userId,
-        friendList.map((friend) => friend.userId)
-      );
       setLeaderboard(rankLeaderboard(entries));
+      setLoadStatus('loaded');
     } catch {
-      setLoadError(true);
+      setLoadStatus('failed');
     }
   }, [userId]);
 
@@ -335,7 +354,7 @@ export default function FriendsScreen() {
             />
           }
         >
-          {loadError && (
+          {loadStatus === 'failed' && (
             <Panel style={styles.panel} hue={todayHue}>
               <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
               <PrimaryButton label="Try Again" onPress={refresh} />
@@ -348,7 +367,15 @@ export default function FriendsScreen() {
             </Panel>
           )}
 
-          {leaderboard.length > 0 && (
+          {loadStatus === 'loading' && (
+            <Panel style={styles.panel} hue={todayHue} accessibilityLabel="Loading leaderboard">
+              {[0, 1, 2].map((index) => (
+                <PlaceholderRow key={index} />
+              ))}
+            </Panel>
+          )}
+
+          {loadStatus !== 'loading' && leaderboard.length > 0 && (
             <Panel style={styles.panel} hue={todayHue}>
               <CycleCircles />
               {leaderboard.map((entry, index) => {
@@ -386,7 +413,10 @@ export default function FriendsScreen() {
             </Panel>
           )}
 
-          {!hasFriends && (
+          {/* Only once the load has actually finished — never while it's
+              still running, and never after a failure (the error panel
+              above covers that, since we don't know the list is empty). */}
+          {loadStatus === 'loaded' && !hasFriends && (
             <Panel style={styles.panel} hue={todayHue}>
               <Label>No Friends Yet</Label>
               <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
@@ -423,6 +453,30 @@ function TodayStatus({ entry }: { entry: LeaderboardEntry }) {
     <View style={styles.statusRow}>
       <Label style={{ color: scoreColor }}>{entry.todayAverage}%</Label>
       <Label>· {entry.passedToday ? 'Pass' : 'Fail'}</Label>
+    </View>
+  );
+}
+
+// A stand-in for one LeaderboardRow while the leaderboard is loading.
+// Built from the real row's own layout styles (row, rankColumn, medalBar,
+// identity, scoreColumn), so it has the same shape and spacing — only the
+// content is swapped for quiet grey bars. Hidden from VoiceOver; the
+// panel around it carries a single "Loading leaderboard" label instead.
+function PlaceholderRow() {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={styles.rankColumn}>
+        <PlaceholderBar width={spacing.lg} height={spacing.xl} />
+      </View>
+      <View style={styles.medalBar} />
+      <View style={styles.identity}>
+        <PlaceholderBar width="60%" />
+      </View>
+      <View style={styles.scoreColumn}>
+        <PlaceholderBar width={spacing.xxl} />
+        <PlaceholderBar width={spacing.xl} height={spacing.md} />
+      </View>
     </View>
   );
 }
