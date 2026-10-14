@@ -22,37 +22,79 @@ The two people building this are learning to code. Favor clarity over cleverness
 - Target platform: iOS first. Keep code cross-platform-friendly, but do not spend effort polishing Android or web yet.
 
 ## Design system: monochrome instrument
-The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technical, with generous negative space. The idea that ties it together: the app is a black-and-white measuring instrument, and color is the specimen it examines. So the whole interface is monochrome apart from the game content and the daily-color chrome described below. Never add decorative color beyond what's listed here.
+The aesthetic is inspired by the tech brand Nothing: stark, monochrome, technical, with generous negative space. The idea that ties it together: the app is a black-and-white measuring instrument, and color is the specimen it examines. So the whole interface is monochrome apart from the game content, the daily-color tint, and the narrow exceptions listed below. Never add decorative color beyond what's listed here.
+
+All values live in constants/theme.ts. Use the tokens there, not raw numbers or hex codes.
 
 ### Palette
-- Background: #000000
-- Raised surface: #0E0E0E
-- Hairline / border: #1C1C1C
-- Secondary surface: #2A2A2A
-- Text primary: #FFFFFF
-- Text muted: #8A8A8A
-- Signal accent, used extremely sparingly: #D71921. The complete list of what it's allowed to mark — nothing else:
-  - Live/alert states: the daily countdown dot, the reminder-active dot, and a pending friend-request alert dot.
-  - PASS/FAIL: the red FAIL indicator, paired with a green PASS one.
-  - The flame icon on the Progress tab (the streak symbol).
+The app has a dark and a light mode. The player picks System, Dark or Light in Settings (context/ThemeContext.tsx). Read colors through `useTheme()` / `useThemedStyles()` so both modes work.
+
+| Token | Dark | Light |
+|---|---|---|
+| background | #121212 | #F5F3EF |
+| surface (raised panels) | #1B1B1B | #FFFFFF |
+| border (hairlines) | #262626 | #E3E0DA |
+| secondarySurface | #303030 | #ECE9E3 |
+| textPrimary | #FFFFFF | #121212 |
+| textMuted | #8A8A8A | #6B6B6B |
+| signal (red) | #D71921 | #D71921 |
+| positive (green PASS) | #3FA34D | #2A7F39 |
+| flame | #E8481A | #E8481A |
+| link | #6db3f2 | #1A6FC4 |
+
+- Every text color in light mode clears WCAG AA (4.5:1) on both background and surface.
+- Signal red #D71921, used sparingly. What it marks:
+  - Live/alert dots: the countdown dot in the header, the reminder-active dot in Settings, the pending friend-request dot, and today's unplayed tick on Progress.
+  - FAIL, paired with the green `positive` PASS.
   - The "Locked until tomorrow's color" notice on the completed Today screen.
-- Game color content: dynamic, driven by the target and the shot. This is the only place hues are allowed to appear at full strength.
-- A couple of other narrow, deliberate exceptions to the monochrome rule live alongside the signal accent: the green PASS indicator above, and a warm red-orange flame icon on the Progress tab — both stay in the same restrained red/green family rather than introducing a random hue.
-- Daily-color theming: `Panel` (components/Panel.tsx) takes an optional `hue` prop that tints its background/border toward that day's color, via `getDailyAccent` in lib/dailyColor.ts. It always uses a fixed, tamed saturation/lightness — never the day's own brightness — so the tint stays legible no matter how loud or pale that day's actual color is; text colors never change. Every screen's panels pass today's hue (or, for a past day's record, that day's own hue), except auth/onboarding screens and the live camera/preview screens, which stay fully neutral. The one place the *pure*, full-strength daily color is used as chrome (not just game content) is the corner brackets framing the Today specimen card.
-- Friends leaderboard medals — the one other deliberate departure from monochrome+red: muted, desaturated metallic tones (never bright arcade gold/silver/bronze) mark the top 3 ranks. #B3944F (muted gold) marks #1 — replacing the signal-red treatment #1 used before this existed — #9CA3AA (muted silver) marks #2, and #8C6A4E (muted bronze) marks #3. Rank 4+ stays plain.
+  - Error messages, and destructive actions (Delete Account, Remove, Block, Decline).
+- Flame (#E8481A): its own warm red-orange token, used only for the streak flame icon.
+- Link blue: only for real web links out of the app (the Privacy Policy row).
+- Game color content: dynamic, driven by the target and the shot. This is the only place hues appear at full strength.
+- Friends leaderboard medals: muted metals, never bright arcade tones. medalGold #B3944F marks #1 (border plus a faint gold fill on the row), medalSilver #9CA3AA marks #2, medalBronze #8C6A4E marks #3. Rank 4+ stays plain. Same values in both modes.
+- Badge tiers (Diamond, Gold, Silver, Bronze) on the friend profile and the Progress "How points work" list have their own brighter set: tierDiamond, tierGold, tierSilver, tierBronze. Light mode uses darker versions so they stay readable.
+
+### Daily-color tint
+- `Panel` (components/Panel.tsx) takes an optional `hue` prop (0 to 360). With it, the panel's background and border are tinted toward that hue.
+- The tint comes from `getDailyAccent(hue, scheme)` in lib/dailyColor.ts. It uses a fixed, tamed saturation and lightness, never the day's own brightness, so text on top stays readable whatever the day's color is. Text colors never change.
+  - Dark: saturation 35, background lightness 10, border lightness 20.
+  - Light: saturation 50, background lightness 97, border lightness 78.
+- Main screens pass today's hue. A past day's record (friend profile day panels) passes that day's own hue.
+- Auth screens (sign in, sign up) and the camera/preview/photo viewer screens stay neutral: no hue.
+- The one place the pure, full-strength daily color is used as chrome is the corner brackets around the Today specimen card.
 
 ### Typography
-- Display type (the big score/percentage, the streak number, screen titles, and the PASS/FAIL verdict): Fugaz One, a bold rounded display face that echoes Nothing's confident numerals. The real Nothing font (Ndot) is proprietary, so do not use it.
-- Data readouts (the target hex code and the daily drop countdown): the body font at a semibold weight with tabular figures, not the display font — these need to be read precisely and shouldn't compete with the display type's hero moments.
-- Body: Work Sans, the app's default type for everything else — labels, buttons, list rows, general UI.
-- Labels: uppercase, wide letter spacing, small size, muted color. Technical caption style.
+- SF, the iPhone system font, for everything (`fonts.primary`, `primaryMedium`, `primarySemiBold`, `primaryBold`).
+- Hero moments (the big score, the streak and points numbers, screen titles, the PASS/FAIL verdict): bold SF (`fonts.display`), through `HeroText`.
+- Fugaz One (`fonts.wordmark`) only in two places: the Gamut wordmark in the header and the large rank numerals on the friends leaderboard. Do not use it anywhere else. The real Nothing font (Ndot) is proprietary, so do not use it.
+- Data readouts (the target hex code and the countdown): semibold SF with tabular figures, through `ReadoutText`.
+- Labels: uppercase, letter spacing 2, size 11, muted color, through `Label`. Technical caption style.
+- Type scale (`typeScale`): display 96 (the result score), specimen 28 (titles, verdicts), value 20 (hex, countdown, scores), button 17 (buttons, list rows), label 11 (captions). Plain body text uses React Native's default size, 14.
+
+### Radius
+Corners are small and technical, not fully hard-edged. Rounded corners use `borderCurve: 'continuous'` (the iOS squircle).
+- `radius.sm` = 4: buttons (PrimaryButton, ActionButton), text fields, small dots and chips inside panels.
+- `radius.md` = 10: every Panel, and leaderboard rows.
+- Values still written as raw numbers in the code (not tokens yet):
+  - 6: leaderboard photo thumbnails, the swatch in the photo viewer.
+  - 8: photo thumbnails on Today and Day detail, the "Random" name chip.
+  - 14: the small ColorSwatch, and the outlined buttons on Preview and Photo viewer.
+  - 20: the large Today ColorSwatch and full-size photos (Preview, Photo viewer).
+  - 999: full circles (the cycle circles on Friends).
 
 ### Layout and feel
+- Spacing comes from `spacing`: xs 4, sm 8, md 12, lg 16, xl 24, xxl 32, xxxl 48. Panels sit 16 from the screen edge and usually have 24 inner padding.
 - Grid-based, lots of empty space, never crowded.
-- Hairline dividers rather than heavy boxed borders.
-- Corners hard-edged, radius minimal or zero. Keep it technical.
-- Motion is minimal and purposeful. A dot-matrix reveal or a countdown tick is enough. Respect reduced motion settings.
-- Signature moment: today's target color shown large, like a paint chip or a specimen slide, against pure black, with dot-matrix data around it (hex, color name, difficulty, countdown to the next drop).
+- Hairline dividers (`StyleSheet.hairlineWidth`) rather than heavy boxed borders.
+- Every tappable thing uses `PressableOpacity`, which scales and dims slightly on press.
+- Motion is minimal and purposeful. Shared timings live in constants/motion.ts and respect the Reduce Motion setting.
+- Signature moment: today's target color shown large, like a paint chip or a specimen slide, framed by corner brackets in the day's color, with the color name and hex on it and the countdown to the next drop in the header.
+
+### Shipping changes
+- The app runs as its own build (expo-dev-client, EAS), not in Expo Go. `runtimeVersion` uses the fingerprint policy.
+- JS-only changes (screens, styles, theme values, assets loaded from JS) ship with `eas update --branch production`.
+- Native changes (a new native library, anything in app.json like the splash screen, icon or plugins) need a new `eas build`, then `eas submit`.
+- The splash background (#121212) is set in app.json and repeated in app/_layout.tsx. If the dark background changes, both must change, and the splash only updates with a new build.
 
 ## Core mechanic (the important part)
 This logic already exists as a working web prototype and is plain JavaScript math, so it moves into React Native almost unchanged.
