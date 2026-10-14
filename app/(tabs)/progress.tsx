@@ -12,6 +12,7 @@ import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { TabFade } from '../../components/TabFade';
 import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors } from '../../constants/theme';
 import { useHistory, type DayRecord } from '../../context/HistoryContext';
 import { useStreak } from '../../context/StreakContext';
@@ -156,179 +157,181 @@ export default function ProgressScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
       <AppHeader />
-      <ScrollView
-        // Never let iOS add its own top inset here on a tab's first show —
-        // AppHeader above already handles the safe area.
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
-        ]}
-      >
-        <Panel style={styles.pointsPanel} hue={todayHue}>
-          <View style={styles.titleRow}>
-            <Label>Cycle {cycleNumber}</Label>
-            <Label>{daysLeft === 0 ? 'Last day' : daysLeftText(daysLeft)}</Label>
-          </View>
+      <TabFade>
+        <ScrollView
+          // Never let iOS add its own top inset here on a tab's first show —
+          // AppHeader above already handles the safe area.
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
+          ]}
+        >
+          <Panel style={styles.pointsPanel} hue={todayHue}>
+            <View style={styles.titleRow}>
+              <Label>Cycle {cycleNumber}</Label>
+              <Label>{daysLeft === 0 ? 'Last day' : daysLeftText(daysLeft)}</Label>
+            </View>
 
-          {!historyLoaded ? (
-            <Label>Loading…</Label>
-          ) : (
-            <>
-              <HeroText
-                style={styles.pointsNumber}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}
-              >
-                {formatPoints(points)}
-              </HeroText>
-              <Label style={styles.pointsCaption}>Cycle points</Label>
-              <BodyText style={styles.badgeLine}>{badge ? `${BADGE_NAMES[badge]} so far` : 'No badge yet'}</BodyText>
+            {!historyLoaded ? (
+              <Label>Loading…</Label>
+            ) : (
+              <>
+                <HeroText
+                  style={styles.pointsNumber}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}
+                >
+                  {formatPoints(points)}
+                </HeroText>
+                <Label style={styles.pointsCaption}>Cycle points</Label>
+                <BodyText style={styles.badgeLine}>{badge ? `${BADGE_NAMES[badge]} so far` : 'No badge yet'}</BodyText>
 
-              <View
-                style={styles.badgeProgress}
-                accessible
-                accessibilityLabel={
-                  next ? `${formatPoints(next.pointsToGo)} points to ${BADGE_NAMES[next.badge]}` : 'Diamond reached'
-                }
-              >
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${Math.round((next?.fraction ?? 1) * 100)}%` }]} />
-                </View>
-                <Label>
-                  {next ? `${formatPoints(next.pointsToGo)} to ${BADGE_NAMES[next.badge]}` : 'Diamond reached'}
-                </Label>
-              </View>
-            </>
-          )}
-        </Panel>
-
-        <Panel style={styles.gridPanel} hue={todayHue}>
-          <View style={styles.grid}>
-            {gridRows.map((rowKeys, rowIndex) => (
-              <View key={rowIndex} style={styles.gridRow}>
-                {rowKeys.map((dateKey, columnIndex) => {
-                  const dayNumber = rowIndex * GRID_COLUMNS + columnIndex + 1;
-                  const record = history[dateKey];
-                  const isTodayLive = dateKey === today && !record;
-                  // Same "YYYY-MM-DD" shape on both sides, so a plain
-                  // string comparison sorts by date.
-                  const isFuture = dateKey > today;
-                  const numberColor = record ? contrastTextColor(record.hex) : null;
-
-                  const tileStyle = [
-                    styles.dayTile,
-                    record ? { backgroundColor: record.hex } : null,
-                    isFuture ? styles.dayTileFuture : null,
-                  ];
-
-                  const numberStyle = [
-                    styles.dayNumber,
-                    isTodayLive ? styles.dayNumberToday : null,
-                    numberColor ? { color: numberColor } : null,
-                    numberColor === '#000000' ? styles.dayNumberOutlineOnLight : null,
-                    numberColor === '#FFFFFF' ? styles.dayNumberOutlineOnDark : null,
-                  ];
-
-                  const content = (
-                    <>
-                      <BodyText style={numberStyle} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
-                        {dayNumber}
-                      </BodyText>
-                      {isTodayLive && <View style={styles.todayLiveTick} />}
-                      {record && (
-                        <View style={styles.dayMark}>
-                          <OutcomeMark record={record} size={11} />
-                        </View>
-                      )}
-                    </>
-                  );
-
-                  if (!record) {
-                    return (
-                      <View key={dateKey} style={tileStyle}>
-                        {content}
-                      </View>
-                    );
+                <View
+                  style={styles.badgeProgress}
+                  accessible
+                  accessibilityLabel={
+                    next ? `${formatPoints(next.pointsToGo)} points to ${BADGE_NAMES[next.badge]}` : 'Diamond reached'
                   }
+                >
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${Math.round((next?.fraction ?? 1) * 100)}%` }]} />
+                  </View>
+                  <Label>
+                    {next ? `${formatPoints(next.pointsToGo)} to ${BADGE_NAMES[next.badge]}` : 'Diamond reached'}
+                  </Label>
+                </View>
+              </>
+            )}
+          </Panel>
 
-                  return (
-                    <PressableOpacity
-                      key={dateKey}
-                      style={tileStyle}
-                      accessibilityLabel={`Day ${dayNumber}, ${record.outcome === 'passed' ? 'passed' : 'failed'}`}
-                      onPress={() => router.push({ pathname: '/day-detail', params: { dateKey } })}
-                    >
-                      {content}
-                    </PressableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
+          <Panel style={styles.gridPanel} hue={todayHue}>
+            <View style={styles.grid}>
+              {gridRows.map((rowKeys, rowIndex) => (
+                <View key={rowIndex} style={styles.gridRow}>
+                  {rowKeys.map((dateKey, columnIndex) => {
+                    const dayNumber = rowIndex * GRID_COLUMNS + columnIndex + 1;
+                    const record = history[dateKey];
+                    const isTodayLive = dateKey === today && !record;
+                    // Same "YYYY-MM-DD" shape on both sides, so a plain
+                    // string comparison sorts by date.
+                    const isFuture = dateKey > today;
+                    const numberColor = record ? contrastTextColor(record.hex) : null;
 
-          {streakLoaded && (
-            <Label style={styles.streakLine}>
-              {currentStreak} played {currentStreak === 1 ? 'day' : 'days'} in a row
-            </Label>
-          )}
-        </Panel>
+                    const tileStyle = [
+                      styles.dayTile,
+                      record ? { backgroundColor: record.hex } : null,
+                      isFuture ? styles.dayTileFuture : null,
+                    ];
 
-        {/* A quiet reference card at the very bottom, closed until tapped.
-            The copy lives in lib/pointsExplainer.ts so Settings can reuse it. */}
-        <CollapsibleCard title={POINTS_EXPLAINER_TITLE}>
-          {POINTS_EXPLAINER_SECTIONS.map((section) => (
-            <View key={section.title} style={styles.explainerSection}>
-              {/* Crown and Streak get their leaderboard icon in front of
-                  the heading; every other heading is text only. */}
-              <View style={styles.explainerHeadingRow}>
-                {section.title === CROWN_SECTION_TITLE && (
-                  <MaterialCommunityIcons name="crown" size={EXPLAINER_ICON_SIZE} color={colors.medalGold} />
-                )}
-                {section.title === STREAK_SECTION_TITLE && <FlameIcon size={EXPLAINER_ICON_SIZE} />}
-                <BodyText style={styles.explainerHeading}>{section.title}</BodyText>
-              </View>
-              <BodyText style={styles.explainerBody}>{section.body}</BodyText>
+                    const numberStyle = [
+                      styles.dayNumber,
+                      isTodayLive ? styles.dayNumberToday : null,
+                      numberColor ? { color: numberColor } : null,
+                      numberColor === '#000000' ? styles.dayNumberOutlineOnLight : null,
+                      numberColor === '#FFFFFF' ? styles.dayNumberOutlineOnDark : null,
+                    ];
 
-              {/* The badge ladder as a 2x2 grid, read row by row: Bronze
-                  and Silver, then Gold and Diamond. Built as two rows
-                  (not two columns) so VoiceOver reads it in that same
-                  order; each row's own divider piece lines up with the
-                  next to form one unbroken line down the middle. */}
-              {section.title === BADGES_SECTION_TITLE && (
-                <View style={styles.badgeGrid}>
-                  {BADGE_GRID_ROWS.map((row) => (
-                    <View key={row[0].badge} style={styles.badgeGridRow}>
-                      {row.map((rung, columnIndex) => (
-                        <Fragment key={rung.badge}>
-                          {columnIndex > 0 && <View style={styles.badgeGridDivider} />}
-                          <View
-                            style={[
-                              styles.badgeGridCell,
-                              columnIndex === 0 ? styles.badgeGridCellLeft : styles.badgeGridCellRight,
-                            ]}
-                          >
-                            <View style={styles.badgeNameRow}>
-                              <View style={[styles.badgeDot, { backgroundColor: colors[BADGE_COLOR_TOKENS[rung.badge]] }]} />
-                              <BodyText style={styles.badgeLadderName} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
-                                {rung.name}
+                    const content = (
+                      <>
+                        <BodyText style={numberStyle} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
+                          {dayNumber}
+                        </BodyText>
+                        {isTodayLive && <View style={styles.todayLiveTick} />}
+                        {record && (
+                          <View style={styles.dayMark}>
+                            <OutcomeMark record={record} size={11} />
+                          </View>
+                        )}
+                      </>
+                    );
+
+                    if (!record) {
+                      return (
+                        <View key={dateKey} style={tileStyle}>
+                          {content}
+                        </View>
+                      );
+                    }
+
+                    return (
+                      <PressableOpacity
+                        key={dateKey}
+                        style={tileStyle}
+                        accessibilityLabel={`Day ${dayNumber}, ${record.outcome === 'passed' ? 'passed' : 'failed'}`}
+                        onPress={() => router.push({ pathname: '/day-detail', params: { dateKey } })}
+                      >
+                        {content}
+                      </PressableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+            {streakLoaded && (
+              <Label style={styles.streakLine}>
+                {currentStreak} played {currentStreak === 1 ? 'day' : 'days'} in a row
+              </Label>
+            )}
+          </Panel>
+
+          {/* A quiet reference card at the very bottom, closed until tapped.
+              The copy lives in lib/pointsExplainer.ts so Settings can reuse it. */}
+          <CollapsibleCard title={POINTS_EXPLAINER_TITLE}>
+            {POINTS_EXPLAINER_SECTIONS.map((section) => (
+              <View key={section.title} style={styles.explainerSection}>
+                {/* Crown and Streak get their leaderboard icon in front of
+                    the heading; every other heading is text only. */}
+                <View style={styles.explainerHeadingRow}>
+                  {section.title === CROWN_SECTION_TITLE && (
+                    <MaterialCommunityIcons name="crown" size={EXPLAINER_ICON_SIZE} color={colors.medalGold} />
+                  )}
+                  {section.title === STREAK_SECTION_TITLE && <FlameIcon size={EXPLAINER_ICON_SIZE} />}
+                  <BodyText style={styles.explainerHeading}>{section.title}</BodyText>
+                </View>
+                <BodyText style={styles.explainerBody}>{section.body}</BodyText>
+
+                {/* The badge ladder as a 2x2 grid, read row by row: Bronze
+                    and Silver, then Gold and Diamond. Built as two rows
+                    (not two columns) so VoiceOver reads it in that same
+                    order; each row's own divider piece lines up with the
+                    next to form one unbroken line down the middle. */}
+                {section.title === BADGES_SECTION_TITLE && (
+                  <View style={styles.badgeGrid}>
+                    {BADGE_GRID_ROWS.map((row) => (
+                      <View key={row[0].badge} style={styles.badgeGridRow}>
+                        {row.map((rung, columnIndex) => (
+                          <Fragment key={rung.badge}>
+                            {columnIndex > 0 && <View style={styles.badgeGridDivider} />}
+                            <View
+                              style={[
+                                styles.badgeGridCell,
+                                columnIndex === 0 ? styles.badgeGridCellLeft : styles.badgeGridCellRight,
+                              ]}
+                            >
+                              <View style={styles.badgeNameRow}>
+                                <View style={[styles.badgeDot, { backgroundColor: colors[BADGE_COLOR_TOKENS[rung.badge]] }]} />
+                                <BodyText style={styles.badgeLadderName} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
+                                  {rung.name}
+                                </BodyText>
+                              </View>
+                              <BodyText style={styles.badgeLadderThreshold} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
+                                {rung.threshold}
                               </BodyText>
                             </View>
-                            <BodyText style={styles.badgeLadderThreshold} maxFontSizeMultiplier={TILE_NUMBER_MAX_FONT_SCALE}>
-                              {rung.threshold}
-                            </BodyText>
-                          </View>
-                        </Fragment>
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ))}
-        </CollapsibleCard>
-      </ScrollView>
+                          </Fragment>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </CollapsibleCard>
+        </ScrollView>
+      </TabFade>
     </SafeAreaView>
   );
 }

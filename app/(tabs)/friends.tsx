@@ -1,8 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '../../components/AppHeader';
@@ -15,10 +16,12 @@ import { Panel } from '../../components/Panel';
 import { PhotoViewerModal } from '../../components/PhotoViewerModal';
 import { PlaceholderBar } from '../../components/PlaceholderBar';
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { TabFade } from '../../components/TabFade';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { fonts, radius, spacing, TAB_BAR_CLEARANCE, typeScale, type ThemeColors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme, useThemedStyles } from '../../context/ThemeContext';
+import { useFadeIn } from '../../hooks/useFadeIn';
 import { useTabSwipe } from '../../hooks/useTabSwipe';
 import { CYCLE_DAYS, cycleInfo } from '../../lib/cycle';
 import { getDailyTarget, getTodayRingColor } from '../../lib/dailyColor';
@@ -187,6 +190,14 @@ export default function FriendsScreen() {
   // pull-to-refresh) leaves it at 'loaded' so the list stays on screen
   // instead of flashing back to placeholders.
   const [loadStatus, setLoadStatus] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  // The latest loadStatus, readable inside loadLeaderboard after its
+  // network wait (the closure there would only see the old value).
+  const loadStatusRef = useRef(loadStatus);
+  loadStatusRef.current = loadStatus;
+  // Fades the real leaderboard rows in when they replace the placeholder
+  // rows. Starts fully visible; only that one moment fades (see
+  // loadLeaderboard), never a later refresh.
+  const { style: rowsFadeStyle, fadeIn: fadeInRows } = useFadeIn();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
@@ -222,12 +233,17 @@ export default function FriendsScreen() {
       );
       setFriends(friendList);
       setHasFriends(friendList.length > 0);
+      // Placeholders -> real rows: fade the rows in. A refresh of rows
+      // already on screen (focus, foreground, pull to refresh) was never
+      // 'loading', so it doesn't fade or flash.
+      const wasLoading = loadStatusRef.current === 'loading';
       setLeaderboard(rankLeaderboard(entries));
       setLoadStatus('loaded');
+      if (wasLoading) fadeInRows({ fromZero: true });
     } catch {
       setLoadStatus('failed');
     }
-  }, [userId]);
+  }, [userId, fadeInRows]);
 
   const refresh = useCallback(() => {
     loadLeaderboard();
@@ -344,127 +360,134 @@ export default function FriendsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
       <AppHeader />
-      {userId && (
-        <View style={styles.manageRow}>
-          {/* Always present (even when empty) so it keeps the icon button
-              pushed to the right edge; the title itself shows only when
-              the leaderboard card does — which includes while it's still
-              loading, since the cycle is worked out on the phone and
-              doesn't need to wait for the network. */}
-          <View style={styles.titleSlot}>{showLeaderboardPanel && <CycleTitle />}</View>
-          <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
-            <Ionicons name="person-add-outline" size={MANAGE_ICON_SIZE} color={colors.textMuted} />
-            {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
-          </PressableOpacity>
-        </View>
-      )}
-
-      {!isAuthLoaded ? null : !userId ? (
-        <View style={[styles.signedOutBody, { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}>
-          <Panel style={styles.panel} hue={todayHue}>
-            <Label>Friends</Label>
-            <BodyText style={styles.note}>
-              Sign in to see your friends leaderboard — the game itself never requires it.
-            </BodyText>
-            <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
-            <PressableOpacity onPress={() => router.push('/sign-in')}>
-              <BodyText style={styles.link}>Already have an account? Sign In</BodyText>
+      <TabFade>
+        {userId && (
+          <View style={styles.manageRow}>
+            {/* Always present (even when empty) so it keeps the icon button
+                pushed to the right edge; the title itself shows only when
+                the leaderboard card does — which includes while it's still
+                loading, since the cycle is worked out on the phone and
+                doesn't need to wait for the network. */}
+            <View style={styles.titleSlot}>{showLeaderboardPanel && <CycleTitle />}</View>
+            <PressableOpacity style={styles.manageButton} onPress={() => router.push('/friends/manage')}>
+              <Ionicons name="person-add-outline" size={MANAGE_ICON_SIZE} color={colors.textMuted} />
+              {pendingRequestCount > 0 && <View style={styles.manageBadge} />}
             </PressableOpacity>
-          </Panel>
-        </View>
-      ) : (
-        <ScrollView
-          // Never let iOS add its own top inset here on a tab's first show —
-          // AppHeader above already handles the safe area.
-          contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.textPrimary}
-              titleColor={colors.textMuted}
-              colors={[colors.textPrimary]}
-              progressBackgroundColor={colors.surface}
-            />
-          }
-        >
-          {loadStatus === 'failed' && (
-            <Panel style={styles.panel} hue={todayHue}>
-              <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
-              <PrimaryButton label="Try Again" onPress={refresh} />
-            </Panel>
-          )}
+          </View>
+        )}
 
-          {removeError && (
+        {!isAuthLoaded ? null : !userId ? (
+          <View style={[styles.signedOutBody, { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}>
             <Panel style={styles.panel} hue={todayHue}>
-              <BodyText style={styles.error}>{removeError}</BodyText>
+              <Label>Friends</Label>
+              <BodyText style={styles.note}>
+                Sign in to see your friends leaderboard — the game itself never requires it.
+              </BodyText>
+              <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
+              <PressableOpacity onPress={() => router.push('/sign-in')}>
+                <BodyText style={styles.link}>Already have an account? Sign In</BodyText>
+              </PressableOpacity>
             </Panel>
-          )}
+          </View>
+        ) : (
+          <ScrollView
+            // Never let iOS add its own top inset here on a tab's first show —
+            // AppHeader above already handles the safe area.
+            contentInsetAdjustmentBehavior="never"
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
+            ]}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.textPrimary}
+                titleColor={colors.textMuted}
+                colors={[colors.textPrimary]}
+                progressBackgroundColor={colors.surface}
+              />
+            }
+          >
+            {loadStatus === 'failed' && (
+              <Panel style={styles.panel} hue={todayHue}>
+                <BodyText style={styles.error}>{"Couldn't load the leaderboard."}</BodyText>
+                <PrimaryButton label="Try Again" onPress={refresh} />
+              </Panel>
+            )}
 
-          {/* One leaderboard panel, loading or not — only what's inside it
-              changes. The cycle circles are real from the start (worked
-              out on the phone); only the rows wait for the network. */}
-          {showLeaderboardPanel && (
-            <Panel style={styles.panel} hue={todayHue}>
-              <CycleCircles />
-              {loadStatus === 'loading' && (
-                <View style={styles.placeholderRows} accessible accessibilityLabel="Loading leaderboard">
-                  {Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, index) => (
-                    <PlaceholderRow key={index} />
-                  ))}
-                </View>
-              )}
-              {loadStatus !== 'loading' && leaderboard.map((entry, index) => {
-                const isYou = entry.userId === userId;
-                // Only friends (not yourself) can be removed, and only if
-                // this entry actually matches a row in `friends` — should
-                // always be true for a non-you row, but this stays a safe
-                // no-op (undefined onRemove, no tap target) rather than
-                // crashing if the two lists were ever out of sync.
-                const matchedFriend = friends.find((friend) => friend.userId === entry.userId);
-                return (
-                  <LeaderboardRow
-                    key={entry.userId}
-                    entry={entry}
-                    rank={index + 1}
-                    isYou={isYou}
-                    onOpenPhoto={openPhoto}
-                    // Opens the same profile screen for your own row too
-                    // (fetchFriendHistory takes any user id) — requestId
-                    // only ever comes along for a friend's row (see
-                    // matchedFriend above; naturally absent for yourself,
-                    // since you're never your own friend_requests row),
-                    // which is what lets the profile screen show its
-                    // remove control only for a friend, never for you.
-                    onOpenProfile={() =>
-                      router.push({
-                        pathname: '/friend/[id]',
-                        params: matchedFriend ? { id: entry.userId, requestId: matchedFriend.id } : { id: entry.userId },
-                      })
-                    }
-                    onRemove={!isYou && matchedFriend ? () => handleFriendMenu(matchedFriend) : undefined}
-                  />
-                );
-              })}
-            </Panel>
-          )}
+            {removeError && (
+              <Panel style={styles.panel} hue={todayHue}>
+                <BodyText style={styles.error}>{removeError}</BodyText>
+              </Panel>
+            )}
 
-          {/* Only once the load has actually finished — never while it's
-              still running, and never after a failure (the error panel
-              above covers that, since we don't know the list is empty). */}
-          {loadStatus === 'loaded' && !hasFriends && (
-            <Panel style={styles.panel} hue={todayHue}>
-              <Label>No Friends Yet</Label>
-              <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
-              <PrimaryButton label="Manage Friends" onPress={() => router.push('/friends/manage')} />
-            </Panel>
-          )}
-        </ScrollView>
-      )}
+            {/* One leaderboard panel, loading or not — only what's inside it
+                changes. The cycle circles are real from the start (worked
+                out on the phone); only the rows wait for the network. */}
+            {showLeaderboardPanel && (
+              <Panel style={styles.panel} hue={todayHue}>
+                <CycleCircles />
+                {loadStatus === 'loading' && (
+                  <View style={styles.placeholderRows} accessible accessibilityLabel="Loading leaderboard">
+                    {Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, index) => (
+                      <PlaceholderRow key={index} />
+                    ))}
+                  </View>
+                )}
+                {loadStatus !== 'loading' && (
+                  // Only the rows fade in; the panel, title and circles don't.
+                  <Animated.View style={[styles.leaderboardRows, rowsFadeStyle]}>
+                    {leaderboard.map((entry, index) => {
+                      const isYou = entry.userId === userId;
+                      // Only friends (not yourself) can be removed, and only if
+                      // this entry actually matches a row in `friends` — should
+                      // always be true for a non-you row, but this stays a safe
+                      // no-op (undefined onRemove, no tap target) rather than
+                      // crashing if the two lists were ever out of sync.
+                      const matchedFriend = friends.find((friend) => friend.userId === entry.userId);
+                      return (
+                        <LeaderboardRow
+                          key={entry.userId}
+                          entry={entry}
+                          rank={index + 1}
+                          isYou={isYou}
+                          onOpenPhoto={openPhoto}
+                          // Opens the same profile screen for your own row too
+                          // (fetchFriendHistory takes any user id) — requestId
+                          // only ever comes along for a friend's row (see
+                          // matchedFriend above; naturally absent for yourself,
+                          // since you're never your own friend_requests row),
+                          // which is what lets the profile screen show its
+                          // remove control only for a friend, never for you.
+                          onOpenProfile={() =>
+                            router.push({
+                              pathname: '/friend/[id]',
+                              params: matchedFriend ? { id: entry.userId, requestId: matchedFriend.id } : { id: entry.userId },
+                            })
+                          }
+                          onRemove={!isYou && matchedFriend ? () => handleFriendMenu(matchedFriend) : undefined}
+                        />
+                      );
+                    })}
+                  </Animated.View>
+                )}
+              </Panel>
+            )}
+
+            {/* Only once the load has actually finished — never while it's
+                still running, and never after a failure (the error panel
+                above covers that, since we don't know the list is empty). */}
+            {loadStatus === 'loaded' && !hasFriends && (
+              <Panel style={styles.panel} hue={todayHue}>
+                <Label>No Friends Yet</Label>
+                <BodyText style={styles.note}>Add a friend to start a leaderboard.</BodyText>
+                <PrimaryButton label="Manage Friends" onPress={() => router.push('/friends/manage')} />
+              </Panel>
+            )}
+          </ScrollView>
+        )}
+      </TabFade>
 
       <PhotoViewerModal
         entry={viewer?.entry ?? null}
@@ -703,6 +726,10 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   // single "Loading leaderboard"), so the wrapper repeats the panel's own
   // gap between rows — real rows get that gap from the panel directly.
   placeholderRows: {
+    gap: spacing.md,
+  },
+  // Same for the real rows, which sit inside one fading wrapper.
+  leaderboardRows: {
     gap: spacing.md,
   },
   // 2 rows of 15 circles, 4pt apart both across and down.

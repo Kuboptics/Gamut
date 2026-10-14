@@ -12,6 +12,7 @@ import { HeroText } from '../../components/HeroText';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { TabFade } from '../../components/TabFade';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { ReadoutText } from '../../components/ReadoutText';
 import { StatusDot } from '../../components/StatusDot';
@@ -191,7 +192,9 @@ export default function TodayScreen() {
   return (
     <View style={styles.swipeArea} {...swipeHandlers}>
       <AppHeader />
-      {todayRecord ? <CompletedToday record={todayRecord} /> : <CaptureToday />}
+      <TabFade>
+        {todayRecord ? <CompletedToday record={todayRecord} /> : <CaptureToday />}
+      </TabFade>
     </View>
   );
 }
@@ -323,8 +326,13 @@ const TICK_SIZE = 18;
 const THUMBNAIL_SIZE = 56;
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  // Paints the theme background behind everything, like the other tabs'
+  // outer views do. Without it, the native tab screen underneath (which
+  // react-native-screens hard-codes to white) shows through while
+  // TabFade's content is part-way through fading in.
   swipeArea: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,

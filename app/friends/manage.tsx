@@ -1,8 +1,9 @@
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Share, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton, ActionButtonPlaceholder } from '../../components/ActionButton';
@@ -18,6 +19,7 @@ import { TextField } from '../../components/TextField';
 import { fonts, radius, spacing, typeScale, type ThemeColors } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useThemedStyles } from '../../context/ThemeContext';
+import { useFadeIn } from '../../hooks/useFadeIn';
 import { getDailyTarget } from '../../lib/dailyColor';
 import {
   blockUser,
@@ -66,6 +68,17 @@ export default function ManageFriendsScreen() {
   // list stays 'loaded', so the rows don't flash back to placeholders.
   const [friendsStatus, setFriendsStatus] = useState<LoadStatus>('loading');
   const [requestsStatus, setRequestsStatus] = useState<LoadStatus>('loading');
+  // The latest statuses, readable inside refresh's network callbacks (the
+  // closure there would only see the old values).
+  const friendsStatusRef = useRef(friendsStatus);
+  friendsStatusRef.current = friendsStatus;
+  const requestsStatusRef = useRef(requestsStatus);
+  requestsStatusRef.current = requestsStatus;
+  // Fade the real rows in when they replace the placeholder rows — only at
+  // that moment, never on a later refresh (after sending, accepting,
+  // removing...). Same fade as the Friends tab's leaderboard rows.
+  const { style: friendsFadeStyle, fadeIn: fadeInFriends } = useFadeIn();
+  const { style: requestsFadeStyle, fadeIn: fadeInRequests } = useFadeIn();
 
   const [codeInput, setCodeInput] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
@@ -95,9 +108,11 @@ export default function ManageFriendsScreen() {
     // together and the panel switches from placeholders to real rows once.
     withTimeout(Promise.all([fetchIncomingRequests(userId), fetchOutgoingRequests(userId)]))
       .then(([incomingList, outgoingList]) => {
+        const wasLoading = requestsStatusRef.current === 'loading';
         setIncoming(incomingList);
         setOutgoing(outgoingList);
         setRequestsStatus('loaded');
+        if (wasLoading) fadeInRequests({ fromZero: true });
       })
       .catch(() => {
         setLoadError(true);
@@ -105,15 +120,17 @@ export default function ManageFriendsScreen() {
       });
     withTimeout(fetchFriends(userId))
       .then((friendList) => {
+        const wasLoading = friendsStatusRef.current === 'loading';
         setFriends(friendList);
         setFriendsStatus('loaded');
+        if (wasLoading) fadeInFriends({ fromZero: true });
       })
       .catch(() => {
         setLoadError(true);
         setFriendsStatus('failed');
       });
     withTimeout(fetchBlockedUsers(userId)).then(setBlocked).catch(() => setLoadError(true));
-  }, [userId]);
+  }, [userId, fadeInFriends, fadeInRequests]);
 
   useFocusEffect(refresh);
 
@@ -323,7 +340,8 @@ export default function ManageFriendsScreen() {
           ) : !hasAnyRequests ? (
             requestsStatus === 'loaded' && <BodyText style={styles.note}>No pending requests.</BodyText>
           ) : (
-            <>
+            // Only the rows fade in, not the panel.
+            <Animated.View style={[styles.rowList, requestsFadeStyle]}>
               {incoming.length > 0 && (
                 <View style={styles.requestGroup}>
                   <Label style={styles.subLabel}>Incoming</Label>
@@ -359,7 +377,7 @@ export default function ManageFriendsScreen() {
                   ))}
                 </View>
               )}
-            </>
+            </Animated.View>
           )}
         </Panel>
 
@@ -377,24 +395,27 @@ export default function ManageFriendsScreen() {
               <BodyText style={styles.note}>No friends yet — share your code to add one.</BodyText>
             )
           ) : (
-            friends.map((friend) => (
-              <View key={friend.id} style={styles.row}>
-                <View style={styles.rowIdentity}>
-                  <BodyText style={styles.rowLabel} numberOfLines={1}>
-                    {friend.displayName}
-                  </BodyText>
-                  {!!friend.friendCode && (
-                    <BodyText style={styles.rowCode} numberOfLines={1}>
-                      {friend.friendCode}
+            // Only the rows fade in, not the panel.
+            <Animated.View style={[styles.rowList, friendsFadeStyle]}>
+              {friends.map((friend) => (
+                <View key={friend.id} style={styles.row}>
+                  <View style={styles.rowIdentity}>
+                    <BodyText style={styles.rowLabel} numberOfLines={1}>
+                      {friend.displayName}
                     </BodyText>
-                  )}
+                    {!!friend.friendCode && (
+                      <BodyText style={styles.rowCode} numberOfLines={1}>
+                        {friend.friendCode}
+                      </BodyText>
+                    )}
+                  </View>
+                  <View style={styles.rowActions}>
+                    <ActionButton label="Remove" tone="signal" onPress={() => handleRemoveFriend(friend)} />
+                    <ActionButton label="Block" tone="signal" onPress={() => handleBlockFriend(friend)} />
+                  </View>
                 </View>
-                <View style={styles.rowActions}>
-                  <ActionButton label="Remove" tone="signal" onPress={() => handleRemoveFriend(friend)} />
-                  <ActionButton label="Block" tone="signal" onPress={() => handleBlockFriend(friend)} />
-                </View>
-              </View>
-            ))
+              ))}
+            </Animated.View>
           )}
         </Panel>
 
@@ -503,6 +524,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   // wrapper (for a single VoiceOver label), so the same gap is added here.
   codeButtonsPlaceholder: {
     marginTop: spacing.md,
+  },
+  // The real rows sit inside one fading wrapper, so it repeats the panel's
+  // own gap between them (they used to be direct children of the panel).
+  rowList: {
+    gap: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',

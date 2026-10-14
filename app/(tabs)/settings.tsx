@@ -16,6 +16,7 @@ import { IntroModal } from '../../components/IntroModal';
 import { Label } from '../../components/Label';
 import { Panel } from '../../components/Panel';
 import { PressableOpacity } from '../../components/PressableOpacity';
+import { TabFade } from '../../components/TabFade';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
 import { PRIVACY_POLICY_URL } from '../../constants/links';
@@ -363,262 +364,264 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']} {...swipeHandlers}>
       <AppHeader />
-      <ScrollView
-        // Never let iOS add its own top inset here on a tab's first show —
-        // AppHeader above already handles the safe area.
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
-        ]}
-      >
-        <Panel style={styles.body} hue={todayHue}>
-          <Label>Notifications</Label>
+      <TabFade>
+        <ScrollView
+          // Never let iOS add its own top inset here on a tab's first show —
+          // AppHeader above already handles the safe area.
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: spacing.xxl + insets.bottom + TAB_BAR_CLEARANCE },
+          ]}
+        >
+          <Panel style={styles.body} hue={todayHue}>
+            <Label>Notifications</Label>
 
-          <View style={styles.row}>
-            <View style={styles.rowLabelGroup}>
-              {/* A small red "active" dot — one of this screen's signal
-                  touches — only shows once the reminder is actually on,
-                  echoing the countdown/live-day dot elsewhere. */}
-              {enabled && <View style={styles.liveDot} />}
-              <BodyText style={styles.rowLabel}>Daily Reminder</BodyText>
-            </View>
-            <Switch
-              value={enabled}
-              onValueChange={setEnabled}
-              disabled={!isLoaded}
-              trackColor={{ false: colors.border, true: colors.textPrimary }}
-              thumbColor={colors.background}
-              ios_backgroundColor={colors.border}
-            />
-          </View>
-
-          {permissionDenied && (
-            <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
-          )}
-
-          {enabled && (
-            <View style={styles.timeSection}>
-              <PressableOpacity onPress={toggleTimePicker} style={styles.timeRow}>
-                <Label>Reminder Time</Label>
-                <View style={styles.timeRowRight}>
-                  <BodyText style={styles.timeValue}>{formatTime(hour, minute)}</BodyText>
-                  <Animated.View style={chevronStyle}>
-                    <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
-                  </Animated.View>
-                </View>
-              </PressableOpacity>
-
-              <Animated.View style={[styles.pickerWrapper, pickerContainerStyle]}>
-                {Platform.OS === 'android' ? (
-                  showAndroidPicker && (
-                    <DateTimePicker value={timeAsDate} mode="time" display="default" onChange={handleTimeChange} />
-                  )
-                ) : (
-                  <DateTimePicker
-                    value={timeAsDate}
-                    mode="time"
-                    display="spinner"
-                    themeVariant="dark"
-                    onChange={handleTimeChange}
-                    style={styles.picker}
-                  />
-                )}
-              </Animated.View>
-            </View>
-          )}
-
-          {/* Only once signed in, same as before this moved here — a
-              signed-out account has no Friend Activity preference to
-              toggle. */}
-          {isAuthLoaded && user && (
-            <>
-              <Divider />
-              <View style={styles.row}>
-                <BodyText style={styles.rowLabel}>Friend Activity</BodyText>
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={handleToggleNotifications}
-                  disabled={!notificationsLoaded || isSavingNotifications}
-                  trackColor={{ false: colors.border, true: colors.textPrimary }}
-                  thumbColor={colors.background}
-                  ios_backgroundColor={colors.border}
-                />
+            <View style={styles.row}>
+              <View style={styles.rowLabelGroup}>
+                {/* A small red "active" dot — one of this screen's signal
+                    touches — only shows once the reminder is actually on,
+                    echoing the countdown/live-day dot elsewhere. */}
+                {enabled && <View style={styles.liveDot} />}
+                <BodyText style={styles.rowLabel}>Daily Reminder</BodyText>
               </View>
-              {notificationsPermissionDenied && (
-                <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
-              )}
-              {notificationsError && <BodyText style={styles.error}>{notificationsError}</BodyText>}
-            </>
-          )}
-        </Panel>
+              <Switch
+                value={enabled}
+                onValueChange={setEnabled}
+                disabled={!isLoaded}
+                trackColor={{ false: colors.border, true: colors.textPrimary }}
+                thumbColor={colors.background}
+                ios_backgroundColor={colors.border}
+              />
+            </View>
 
-        <Panel style={styles.appearancePanel} hue={todayHue}>
-          <Label>Appearance</Label>
-          <View style={styles.appearanceRow} accessibilityRole="radiogroup">
-            {APPEARANCE_OPTIONS.map((option) => {
-              const isSelected = preference === option.value;
-              return (
-                <PressableOpacity
-                  key={option.value}
-                  style={[styles.appearanceOption, isSelected && styles.appearanceOptionSelected]}
-                  onPress={() => setPreference(option.value)}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${option.label} appearance`}
-                  accessibilityState={{ checked: isSelected }}
-                >
-                  <BodyText
-                    style={[styles.appearanceOptionLabel, isSelected && styles.appearanceOptionLabelSelected]}
-                  >
-                    {option.label}
-                  </BodyText>
+            {permissionDenied && (
+              <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
+            )}
+
+            {enabled && (
+              <View style={styles.timeSection}>
+                <PressableOpacity onPress={toggleTimePicker} style={styles.timeRow}>
+                  <Label>Reminder Time</Label>
+                  <View style={styles.timeRowRight}>
+                    <BodyText style={styles.timeValue}>{formatTime(hour, minute)}</BodyText>
+                    <Animated.View style={chevronStyle}>
+                      <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
+                    </Animated.View>
+                  </View>
                 </PressableOpacity>
-              );
-            })}
-          </View>
-        </Panel>
 
-        {isAuthLoaded && (
-          <CollapsibleCard
-            title="Account settings"
-            // The name draft lives in this screen's state, not in the
-            // card, so closing the card never loses an unsaved edit. The
-            // keyboard is dismissed so it doesn't stay up over a closed card.
-            onOpenChange={(open) => {
-              if (!open) Keyboard.dismiss();
-            }}
-          >
-            {/* Keeps the card's original 12pt spacing between its rows. */}
-            <View style={styles.accountContent}>
-              {user ? (
-                <>
-                  <BodyText style={styles.rowLabel}>{user.email}</BodyText>
-
-                  {profileLoadError && (
-                    <>
-                      <BodyText style={styles.error}>{"Couldn't load your profile."}</BodyText>
-                      <PrimaryButton label="Try Again" onPress={refreshProfile} />
-                    </>
-                  )}
-
-                  {/* Grouped so this whole block (field, error, Save) is
-                      the one child the card's own gap (see accountContent)
-                      spaces against the next row. */}
-                  <View>
-                    <TextField
-                      ref={nameInputRef}
-                      label="Display Name"
-                      value={displayNameInput}
-                      onChangeText={(text) => {
-                        setDisplayNameInput(text);
-                        setNameError(null);
-                      }}
-                      onSubmitEditing={handleSaveName}
-                      placeholder="Player"
-                      maxLength={MAX_DISPLAY_NAME_LENGTH}
-                      autoComplete="name"
-                      textContentType="name"
-                      accessory={
-                        <PressableOpacity
-                          style={styles.randomChip}
-                          onPress={handleRandomName}
-                          accessibilityLabel="Random name"
-                        >
-                          <BodyText style={styles.randomChipLabel}>RANDOM</BodyText>
-                        </PressableOpacity>
-                      }
+                <Animated.View style={[styles.pickerWrapper, pickerContainerStyle]}>
+                  {Platform.OS === 'android' ? (
+                    showAndroidPicker && (
+                      <DateTimePicker value={timeAsDate} mode="time" display="default" onChange={handleTimeChange} />
+                    )
+                  ) : (
+                    <DateTimePicker
+                      value={timeAsDate}
+                      mode="time"
+                      display="spinner"
+                      themeVariant="dark"
+                      onChange={handleTimeChange}
+                      style={styles.picker}
                     />
-                    {nameError && <BodyText style={[styles.error, styles.nameErrorSpacing]}>{nameError}</BodyText>}
-                    {/* Only there while the name has an unsaved change, so
-                        it reserves no space when hidden; the rows below move
-                        down when it appears. It fades in and out with the
-                        app's usual timing, or appears instantly when Reduce
-                        Motion is on. */}
-                    {isNameDirty && (
-                      <Animated.View
-                        style={styles.saveRow}
-                        entering={reducedMotion ? undefined : FadeIn.duration(motionDuration.base).easing(motionEasing)}
-                        exiting={reducedMotion ? undefined : FadeOut.duration(motionDuration.base).easing(motionEasing)}
-                      >
-                        <PressableOpacity
-                          style={[styles.fullWidthButton, styles.saveButton]}
-                          onPress={handleSaveName}
-                        >
-                          <BodyText style={[styles.fullWidthButtonLabel, styles.saveButtonLabel]}>Save</BodyText>
-                        </PressableOpacity>
-                      </Animated.View>
-                    )}
-                  </View>
+                  )}
+                </Animated.View>
+              </View>
+            )}
 
-                  {/* Divider plus both buttons are direct children of
-                      accountContent, so its own gap (spacing.md)
-                      gives equal spacing above/below the divider and
-                      between the two buttons, with no extra style needed
-                      for either. */}
-                  <Divider />
-
-                  <PressableOpacity
-                    style={[styles.fullWidthButton, styles.signOutButton]}
-                    onPress={() => signOut()}
-                  >
-                    <BodyText style={[styles.fullWidthButtonLabel, styles.signOutLabel]}>Sign Out</BodyText>
-                  </PressableOpacity>
-
-                  <PressableOpacity
-                    style={[styles.fullWidthButton, styles.deleteButton]}
-                    onPress={handleDeleteAccount}
-                  >
-                    <BodyText style={[styles.fullWidthButtonLabel, styles.deleteLabel]}>Delete Account</BodyText>
-                  </PressableOpacity>
-                  {deleteError && <BodyText style={styles.error}>{deleteError}</BodyText>}
-                </>
-              ) : (
-                <>
-                  <BodyText style={styles.note}>
-                    Sign in to get ready for friends and leaderboards — the game itself never requires it.
-                  </BodyText>
-                  <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
-                  <View style={styles.authButtonRow}>
-                    <ActionButton label="Sign In" tone="neutral" onPress={() => router.push('/sign-in')} />
-                  </View>
-                </>
-              )}
-            </View>
-          </CollapsibleCard>
-        )}
-
-        <CollapsibleCard title="How it works">
-          {HOW_IT_WORKS.map((section) => (
-            <View key={section.title} style={styles.sectionRow}>
-              <BodyText style={styles.sectionTitle}>{section.title}</BodyText>
-              <BodyText style={styles.sectionBody}>{section.body}</BodyText>
-              {section.title === GET_SCORED_TITLE && (
-                <View style={styles.scoreLegendRow}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, styles.legendDotPass]} />
-                    <Label>50%+ passes</Label>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, styles.legendDotFail]} />
-                    <Label>Below 50% fails</Label>
-                  </View>
+            {/* Only once signed in, same as before this moved here — a
+                signed-out account has no Friend Activity preference to
+                toggle. */}
+            {isAuthLoaded && user && (
+              <>
+                <Divider />
+                <View style={styles.row}>
+                  <BodyText style={styles.rowLabel}>Friend Activity</BodyText>
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={handleToggleNotifications}
+                    disabled={!notificationsLoaded || isSavingNotifications}
+                    trackColor={{ false: colors.border, true: colors.textPrimary }}
+                    thumbColor={colors.background}
+                    ios_backgroundColor={colors.border}
+                  />
                 </View>
-              )}
+                {notificationsPermissionDenied && (
+                  <Label style={styles.note}>Notifications are off in system settings — enable them to use this</Label>
+                )}
+                {notificationsError && <BodyText style={styles.error}>{notificationsError}</BodyText>}
+              </>
+            )}
+          </Panel>
+
+          <Panel style={styles.appearancePanel} hue={todayHue}>
+            <Label>Appearance</Label>
+            <View style={styles.appearanceRow} accessibilityRole="radiogroup">
+              {APPEARANCE_OPTIONS.map((option) => {
+                const isSelected = preference === option.value;
+                return (
+                  <PressableOpacity
+                    key={option.value}
+                    style={[styles.appearanceOption, isSelected && styles.appearanceOptionSelected]}
+                    onPress={() => setPreference(option.value)}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${option.label} appearance`}
+                    accessibilityState={{ checked: isSelected }}
+                  >
+                    <BodyText
+                      style={[styles.appearanceOptionLabel, isSelected && styles.appearanceOptionLabelSelected]}
+                    >
+                      {option.label}
+                    </BodyText>
+                  </PressableOpacity>
+                );
+              })}
             </View>
-          ))}
+          </Panel>
 
-          {/* The last item in the open card: replays the first-launch intro. */}
-          <PressableOpacity style={styles.viewIntroLink} onPress={() => setShowIntro(true)}>
-            <BodyText style={styles.link}>View Intro Again</BodyText>
-          </PressableOpacity>
-        </CollapsibleCard>
+          {isAuthLoaded && (
+            <CollapsibleCard
+              title="Account settings"
+              // The name draft lives in this screen's state, not in the
+              // card, so closing the card never loses an unsaved edit. The
+              // keyboard is dismissed so it doesn't stay up over a closed card.
+              onOpenChange={(open) => {
+                if (!open) Keyboard.dismiss();
+              }}
+            >
+              {/* Keeps the card's original 12pt spacing between its rows. */}
+              <View style={styles.accountContent}>
+                {user ? (
+                  <>
+                    <BodyText style={styles.rowLabel}>{user.email}</BodyText>
 
-        <View style={styles.footer}>
-          <PressableOpacity onPress={handleOpenPrivacyPolicy}>
-            <BodyText style={[styles.privacyLink, styles.footerNote]}>Privacy Policy</BodyText>
-          </PressableOpacity>
-        </View>
-      </ScrollView>
+                    {profileLoadError && (
+                      <>
+                        <BodyText style={styles.error}>{"Couldn't load your profile."}</BodyText>
+                        <PrimaryButton label="Try Again" onPress={refreshProfile} />
+                      </>
+                    )}
+
+                    {/* Grouped so this whole block (field, error, Save) is
+                        the one child the card's own gap (see accountContent)
+                        spaces against the next row. */}
+                    <View>
+                      <TextField
+                        ref={nameInputRef}
+                        label="Display Name"
+                        value={displayNameInput}
+                        onChangeText={(text) => {
+                          setDisplayNameInput(text);
+                          setNameError(null);
+                        }}
+                        onSubmitEditing={handleSaveName}
+                        placeholder="Player"
+                        maxLength={MAX_DISPLAY_NAME_LENGTH}
+                        autoComplete="name"
+                        textContentType="name"
+                        accessory={
+                          <PressableOpacity
+                            style={styles.randomChip}
+                            onPress={handleRandomName}
+                            accessibilityLabel="Random name"
+                          >
+                            <BodyText style={styles.randomChipLabel}>RANDOM</BodyText>
+                          </PressableOpacity>
+                        }
+                      />
+                      {nameError && <BodyText style={[styles.error, styles.nameErrorSpacing]}>{nameError}</BodyText>}
+                      {/* Only there while the name has an unsaved change, so
+                          it reserves no space when hidden; the rows below move
+                          down when it appears. It fades in and out with the
+                          app's usual timing, or appears instantly when Reduce
+                          Motion is on. */}
+                      {isNameDirty && (
+                        <Animated.View
+                          style={styles.saveRow}
+                          entering={reducedMotion ? undefined : FadeIn.duration(motionDuration.base).easing(motionEasing)}
+                          exiting={reducedMotion ? undefined : FadeOut.duration(motionDuration.base).easing(motionEasing)}
+                        >
+                          <PressableOpacity
+                            style={[styles.fullWidthButton, styles.saveButton]}
+                            onPress={handleSaveName}
+                          >
+                            <BodyText style={[styles.fullWidthButtonLabel, styles.saveButtonLabel]}>Save</BodyText>
+                          </PressableOpacity>
+                        </Animated.View>
+                      )}
+                    </View>
+
+                    {/* Divider plus both buttons are direct children of
+                        accountContent, so its own gap (spacing.md)
+                        gives equal spacing above/below the divider and
+                        between the two buttons, with no extra style needed
+                        for either. */}
+                    <Divider />
+
+                    <PressableOpacity
+                      style={[styles.fullWidthButton, styles.signOutButton]}
+                      onPress={() => signOut()}
+                    >
+                      <BodyText style={[styles.fullWidthButtonLabel, styles.signOutLabel]}>Sign Out</BodyText>
+                    </PressableOpacity>
+
+                    <PressableOpacity
+                      style={[styles.fullWidthButton, styles.deleteButton]}
+                      onPress={handleDeleteAccount}
+                    >
+                      <BodyText style={[styles.fullWidthButtonLabel, styles.deleteLabel]}>Delete Account</BodyText>
+                    </PressableOpacity>
+                    {deleteError && <BodyText style={styles.error}>{deleteError}</BodyText>}
+                  </>
+                ) : (
+                  <>
+                    <BodyText style={styles.note}>
+                      Sign in to get ready for friends and leaderboards — the game itself never requires it.
+                    </BodyText>
+                    <PrimaryButton label="Create Account" onPress={() => router.push('/sign-up')} />
+                    <View style={styles.authButtonRow}>
+                      <ActionButton label="Sign In" tone="neutral" onPress={() => router.push('/sign-in')} />
+                    </View>
+                  </>
+                )}
+              </View>
+            </CollapsibleCard>
+          )}
+
+          <CollapsibleCard title="How it works">
+            {HOW_IT_WORKS.map((section) => (
+              <View key={section.title} style={styles.sectionRow}>
+                <BodyText style={styles.sectionTitle}>{section.title}</BodyText>
+                <BodyText style={styles.sectionBody}>{section.body}</BodyText>
+                {section.title === GET_SCORED_TITLE && (
+                  <View style={styles.scoreLegendRow}>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, styles.legendDotPass]} />
+                      <Label>50%+ passes</Label>
+                    </View>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, styles.legendDotFail]} />
+                      <Label>Below 50% fails</Label>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {/* The last item in the open card: replays the first-launch intro. */}
+            <PressableOpacity style={styles.viewIntroLink} onPress={() => setShowIntro(true)}>
+              <BodyText style={styles.link}>View Intro Again</BodyText>
+            </PressableOpacity>
+          </CollapsibleCard>
+
+          <View style={styles.footer}>
+            <PressableOpacity onPress={handleOpenPrivacyPolicy}>
+              <BodyText style={[styles.privacyLink, styles.footerNote]}>Privacy Policy</BodyText>
+            </PressableOpacity>
+          </View>
+        </ScrollView>
+      </TabFade>
 
       <IntroModal visible={showIntro} onClose={() => setShowIntro(false)} />
     </SafeAreaView>
